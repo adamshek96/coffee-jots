@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
 import type { Screen } from "../store";
+import { Devices } from "./Devices";
+import { DeviceSetup } from "./DeviceSetup";
 import { FinishRoast } from "./FinishRoast";
 import { Home } from "./Home";
 import { LiveRoast } from "./LiveRoast";
@@ -16,4 +18,6 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   post: FinishRoast,
   detail: RoastDetail,
   setup: NewRoast,
+  devices: Devices,
+  device: DeviceSetup,
 };
