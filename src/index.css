@@ -1,0 +1,66 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: #d6d1c7;
+  color: #241d16;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+a { color: #575618; }
+a:hover { color: #a9613a; }
+input::placeholder, textarea::placeholder { color: #9a9184; }
+input:focus, textarea:focus { outline: none; border-color: #a9613a !important; }
+button { touch-action: manipulation; }
+
+/* pressed-state equivalents of the prototype's style-active */
+.press:active { transform: scale(0.98); }
+.pressY:active { transform: translateY(1px); }
+.pressS:active { transform: scale(0.94); }
+.pressC:active { transform: translate(-50%, -50%) scale(0.94); }
+
+.noScrollbar { scrollbar-width: none; }
+.noScrollbar::-webkit-scrollbar { display: none; }
+
+@keyframes cjPulse {
+  0% { box-shadow: 0 0 0 0 rgba(169, 97, 58, 0.35); }
+  70% { box-shadow: 0 0 0 9px rgba(169, 97, 58, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(169, 97, 58, 0); }
+}
+@keyframes cjBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+@keyframes cjScan { 0% { top: 6%; } 100% { top: 94%; } }
+@keyframes cjRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* phone-sized column, safe-area aware */
+.appShell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #d6d1c7;
+  display: flex;
+  justify-content: center;
+}
+.appCol {
+  width: 100%;
+  max-width: 430px;
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+}
+
+/* iPad: let home + detail breathe side by side */
+.twoCol { display: none; }
+@media (min-width: 900px) {
+  .twoCol {
+    display: grid;
+    grid-template-columns: 420px 460px;
+    gap: 28px;
+    align-items: start;
+    justify-content: center;
+    width: 100%;
+    padding: calc(18px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));
+  }
+  .twoCol > div { min-width: 0; }
+  .appCol.hideWide { display: none; }
+}
+@media (max-width: 899.5px) {
+  .twoCol { display: none; }
+}
