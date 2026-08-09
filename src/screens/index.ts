@@ -7,6 +7,7 @@ import { FinishRoast } from "./FinishRoast";
 import { Home } from "./Home";
 import { LiveRoast } from "./LiveRoast";
 import { NewRoast } from "./NewRoast";
+import { Passport } from "./Passport";
 import { RoastDetail } from "./RoastDetail";
 
 /**
@@ -22,4 +23,5 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   devices: Devices,
   device: DeviceSetup,
   analytics: Analytics,
+  passport: Passport,
 };
