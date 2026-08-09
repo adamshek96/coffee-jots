@@ -7,6 +7,7 @@ import { FinishRoast } from "./FinishRoast";
 import { Home } from "./Home";
 import { LiveRoast } from "./LiveRoast";
 import { NewRoast } from "./NewRoast";
+import { Onboarding } from "./Onboarding";
 import { Passport } from "./Passport";
 import { RoastDetail } from "./RoastDetail";
 import { Share } from "./Share";
@@ -16,6 +17,7 @@ import { Share } from "./Share";
  * anything missing so every commit stays runnable.
  */
 export const SCREENS: Partial<Record<Screen, ComponentType>> = {
+  onboard: Onboarding,
   home: Home,
   live: LiveRoast,
   post: FinishRoast,
