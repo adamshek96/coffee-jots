@@ -9,6 +9,7 @@ import { LiveRoast } from "./LiveRoast";
 import { NewRoast } from "./NewRoast";
 import { Passport } from "./Passport";
 import { RoastDetail } from "./RoastDetail";
+import { Share } from "./Share";
 
 /**
  * Screens register here as they're ported; App falls back to Home for
@@ -24,4 +25,5 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   device: DeviceSetup,
   analytics: Analytics,
   passport: Passport,
+  share: Share,
 };
