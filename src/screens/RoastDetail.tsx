@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
 import { fmt, lossPct } from "../lib/calc";
@@ -7,11 +8,11 @@ import { useStore } from "../store";
 export function RoastDetail() {
   const { st, set } = useStore();
   const r = st.roasts.find((x) => x.id === st.detailId);
-  if (!r) {
+  useEffect(() => {
     // roast vanished (e.g. restore) — bounce home
-    set({ screen: "home", detailId: null });
-    return null;
-  }
+    if (!r) set({ screen: "home", detailId: null });
+  }, [r, set]);
+  if (!r) return null;
 
   const ev = r.events || {};
   const LV = LEVELS.find((x) => x.name === r.roastLevel);
