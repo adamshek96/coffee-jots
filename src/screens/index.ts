@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { Screen } from "../store";
 import { FinishRoast } from "./FinishRoast";
+import { Home } from "./Home";
 import { LiveRoast } from "./LiveRoast";
 
 /**
@@ -8,6 +9,7 @@ import { LiveRoast } from "./LiveRoast";
  * anything missing so every commit stays runnable.
  */
 export const SCREENS: Partial<Record<Screen, ComponentType>> = {
+  home: Home,
   live: LiveRoast,
   post: FinishRoast,
 };
