@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { Screen } from "../store";
+import { FinishRoast } from "./FinishRoast";
 import { LiveRoast } from "./LiveRoast";
 
 /**
@@ -8,4 +9,5 @@ import { LiveRoast } from "./LiveRoast";
  */
 export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   live: LiveRoast,
+  post: FinishRoast,
 };
