@@ -3,6 +3,7 @@ import type { Screen } from "../store";
 import { FinishRoast } from "./FinishRoast";
 import { Home } from "./Home";
 import { LiveRoast } from "./LiveRoast";
+import { RoastDetail } from "./RoastDetail";
 
 /**
  * Screens register here as they're ported; App falls back to Home for
@@ -12,4 +13,5 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   home: Home,
   live: LiveRoast,
   post: FinishRoast,
+  detail: RoastDetail,
 };
