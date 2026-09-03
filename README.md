@@ -60,6 +60,17 @@ Each gives you a free `https://…` URL. Open it on your iPhone → share →
 **Add to Home Screen**. Because it's HTTPS, the service worker installs and the
 app then works fully offline, forever, at that stable URL.
 
+## Profile and lock
+
+Still no accounts and no server. The profile (name, home roastery, photo) is
+stored on the device, and the lock is a door on this device only — Face ID /
+Touch ID via a WebAuthn passkey, or a salted-hashed passcode. A backup code,
+generated once during setup, gets you back in if either fails.
+
+The lock is not encryption: the journal sits unencrypted in IndexedDB, so it
+stops someone who picks up your phone, not someone with real access to the
+device. It also never engages while a roast is in progress.
+
 ## Your data
 
 - Everything lives in IndexedDB on the device (`coffeejots` database).

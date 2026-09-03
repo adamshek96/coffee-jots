@@ -84,6 +84,30 @@ text captions.
   reorder the JSX blocks to taste. The derived insights are built in the
   `insights` array in the same file.
 
+## Your profile and the lock
+
+Both live in the app itself: tap the round avatar button in the top-right of
+Home.
+
+- **Profile** — your name, home roastery, and photo. The roastery name replaces
+  "Coffee Jots" as the Home title and shows on your lock screen. The photo is
+  cropped and shrunk to 256px in the browser and stored on the device; it is
+  never uploaded.
+- **Lock** — Face ID / Touch ID (a WebAuthn passkey) or a 4–8 digit passcode.
+  The passcode is stored as a salted PBKDF2-SHA256 hash, never in plain text.
+- **Backup code** — generated once, shown in first-run setup and in your
+  profile. It's the way back in if Face ID breaks or you forget the passcode;
+  using it removes the lock rather than losing your roasts.
+
+To change how quickly it re-locks, use **Lock again after** in the profile. The
+app deliberately never locks while a roast is in progress — see
+`roastInProgress()` in [`src/store.tsx`](src/store.tsx) if you want to change
+that rule.
+
+What the lock is **not**: it doesn't encrypt anything. Your roasts sit in this
+browser's IndexedDB, so someone with real access to the device could still read
+them. It stops a person who picks up your phone from opening the app.
+
 ## Other knobs
 
 - **Cooling default / heat range / fan layout** — per device, in the app
