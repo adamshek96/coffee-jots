@@ -20,7 +20,10 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
+# Netlify serves .webmanifest as application/octet-stream by default, which
+# Chrome rejects — the manifest must declare its real type to be installable.
 [[headers]]
   for = "/manifest.webmanifest"
   [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
     Cache-Control = "public, max-age=0, must-revalidate"
