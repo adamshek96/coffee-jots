@@ -84,8 +84,11 @@ export function Home() {
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em" }}>Coffee Jots</h1>
+      <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em" }}>
+          {st.settings.profile.roastery || "Coffee Jots"}
+        </h1>
         <button
           onClick={goDevices}
           className="press"
@@ -119,6 +122,38 @@ export function Home() {
             {store.dev().name}
             <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
           </span>
+        </button>
+        </div>
+        <button
+          onClick={() => set({ screen: "profile" })}
+          className="press"
+          aria-label="Your profile"
+          style={{
+            flexShrink: 0,
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            border: `1px solid ${C.hair}`,
+            background: C.card,
+            padding: 0,
+            cursor: "pointer",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {st.settings.profile.avatar ? (
+            <img
+              src={st.settings.profile.avatar}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.muted }}>
+              {(st.settings.profile.displayName.trim()[0] || "·").toUpperCase()}
+            </span>
+          )}
         </button>
       </div>
 

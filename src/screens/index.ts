@@ -9,6 +9,7 @@ import { LiveRoast } from "./LiveRoast";
 import { NewRoast } from "./NewRoast";
 import { Onboarding } from "./Onboarding";
 import { Passport } from "./Passport";
+import { Profile } from "./Profile";
 import { RoastDetail } from "./RoastDetail";
 import { Share } from "./Share";
 
@@ -28,4 +29,5 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   analytics: Analytics,
   passport: Passport,
   share: Share,
+  profile: Profile,
 };

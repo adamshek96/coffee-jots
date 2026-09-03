@@ -110,13 +110,33 @@ export interface ActiveRoast {
   coolDuration: number;
 }
 
+export type LockMode = "none" | "passkey" | "passcode";
+
+export interface LockConfig {
+  mode: LockMode;
+  credentialId: string | null; // passkey credential id (base64url)
+  passcodeHash: string | null; // PBKDF2 hash (base64)
+  passcodeSalt: string | null;
+  backupCode: string | null; // recovery, shown during onboarding
+  autoLockMinutes: number; // re-lock after this long away; 0 = only on launch
+}
+
+export interface Profile {
+  displayName: string;
+  roastery: string;
+  avatar: string | null; // data URL, resized on import — stays on device
+  since: number | null; // journal start date
+}
+
 export interface Settings {
   activeDeviceId: string;
   wishlist: string[];
   onboarded: boolean;
   published: Record<string, string>; // roastId -> token
-  lock: string; // "faceid" | "passcode" | "none" — recorded, not enforced in v1
+  lock: string; // onboarding preference: "faceid" | "passcode" | "none"
   lastExportAt: number | null;
+  profile: Profile;
+  lockCfg: LockConfig;
 }
 
 export interface ExportShape {

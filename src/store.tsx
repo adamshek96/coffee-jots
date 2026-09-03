@@ -15,7 +15,18 @@ import {
 } from "./db";
 import { FANS, METRICS, MS } from "./lib/constants";
 import { vibrate } from "./lib/haptics";
-import type { ActiveRoast, Bean, Device, DevSnap, ExportShape, MilestoneKey, Roast, Settings } from "./types";
+import { createPasskey, generateBackupCode, hashPasscode, randomSalt, safeEqual } from "./lib/lock";
+import type {
+  ActiveRoast,
+  Bean,
+  Device,
+  DevSnap,
+  ExportShape,
+  MilestoneKey,
+  Profile,
+  Roast,
+  Settings,
+} from "./types";
 
 export type Screen =
   | "onboard"
@@ -28,10 +39,12 @@ export type Screen =
   | "analytics"
   | "devices"
   | "device"
-  | "share";
+  | "share"
+  | "profile";
 
 export interface AppState {
   loaded: boolean;
+  locked: boolean;
   screen: Screen;
   q: string;
   detailId: string | null;
@@ -69,8 +82,17 @@ export interface AppState {
   postRating: number;
 }
 
+/**
+ * Beans are actually in the machine — the app must not put a lock screen in
+ * front of the milestone rail. Applies on launch and to auto-lock alike.
+ */
+function roastInProgress(a: ActiveRoast | null): boolean {
+  return !!a && (a.status === "roasting" || a.status === "cooling");
+}
+
 const initialState: AppState = {
   loaded: false,
+  locked: false,
   screen: "home",
   q: "",
   detailId: null,
@@ -127,6 +149,16 @@ export interface Store {
   exportJournal: () => void;
   importJournal: (file: File) => void;
   savedAt: number | null;
+  // profile + lock
+  saveProfile: (p: Partial<Profile>) => void;
+  unlock: () => void;
+  lockNow: () => void;
+  enablePasskeyLock: () => Promise<boolean>;
+  enablePasscodeLock: (code: string) => Promise<boolean>;
+  disableLock: () => void;
+  checkPasscode: (code: string) => Promise<boolean>;
+  setAutoLockMinutes: (m: number) => void;
+  ensureBackupCode: () => string;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -143,12 +175,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ref = useRef(st);
   ref.current = st;
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const backupGuard = useRef<string | null>(null);
 
   useEffect(() => {
     loadAll().then((d) => {
       setSt((s) => ({
         ...s,
         loaded: true,
+        // Reloading mid-roast must not strand the user behind the lock screen.
+        locked: d.settings.lockCfg.mode !== "none" && !roastInProgress(d.active),
         roasts: d.roasts,
         beans: d.beans,
         devices: d.devices,
@@ -158,6 +193,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         screen: d.settings.onboarded ? "home" : "onboard",
       }));
     });
+  }, []);
+
+  /**
+   * Auto-lock after time away — but never while a roast is in progress.
+   * Getting locked out mid-roast with beans in the machine would be worse
+   * than the privacy it buys.
+   */
+  useEffect(() => {
+    let leftAt = 0;
+    const onVisibility = () => {
+      const s = ref.current;
+      if (document.visibilityState === "hidden") {
+        leftAt = Date.now();
+        return;
+      }
+      const cfg = s.settings.lockCfg;
+      if (cfg.mode === "none" || s.locked || roastInProgress(s.active)) return;
+      const mins = cfg.autoLockMinutes;
+      if (mins > 0 && leftAt && Date.now() - leftAt > mins * 60_000) {
+        setSt((prev) => ({ ...prev, locked: true }));
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   const set = useCallback((patch: Partial<AppState>) => {
@@ -507,6 +566,123 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [set, persistSettings, flash, touch],
   );
 
+  // ---- profile ----
+
+  const saveProfile = useCallback(
+    (p: Partial<Profile>) => {
+      const s = ref.current;
+      const profile = { ...s.settings.profile, ...p };
+      if (profile.since == null) profile.since = Date.now();
+      const settings = { ...s.settings, profile };
+      set({ settings });
+      persistSettings(settings);
+    },
+    [set, persistSettings],
+  );
+
+  // ---- lock ----
+
+  const unlock = useCallback(() => set({ locked: false }), [set]);
+
+  const lockNow = useCallback(() => {
+    if (ref.current.settings.lockCfg.mode === "none") return;
+    set({ locked: true });
+  }, [set]);
+
+  /**
+   * The backup code must be generated exactly once — the user writes it down,
+   * so a second generation would invalidate the copy in their logbook. The ref
+   * guard covers the window before a setState has committed (and StrictMode's
+   * double-invocation), which the settings check alone can't.
+   */
+  const ensureBackupCode = useCallback((): string => {
+    const s = ref.current;
+    const existing = s.settings.lockCfg.backupCode || backupGuard.current;
+    if (existing) {
+      backupGuard.current = existing;
+      return existing;
+    }
+    const code = generateBackupCode();
+    backupGuard.current = code;
+    const settings = { ...s.settings, lockCfg: { ...s.settings.lockCfg, backupCode: code } };
+    set({ settings });
+    persistSettings(settings);
+    return code;
+  }, [set, persistSettings]);
+
+  const enablePasskeyLock = useCallback(async (): Promise<boolean> => {
+    const s = ref.current;
+    const label = s.settings.profile.displayName || s.settings.profile.roastery || "Coffee Jots";
+    const credentialId = await createPasskey(label);
+    if (!credentialId) return false;
+    const settings: Settings = {
+      ...s.settings,
+      lock: "faceid",
+      lockCfg: {
+        ...s.settings.lockCfg,
+        mode: "passkey",
+        credentialId,
+        backupCode: s.settings.lockCfg.backupCode || backupGuard.current || generateBackupCode(),
+      },
+    };
+    set({ settings });
+    persistSettings(settings);
+    return true;
+  }, [set, persistSettings]);
+
+  const enablePasscodeLock = useCallback(
+    async (code: string): Promise<boolean> => {
+      if (!/^\d{4,8}$/.test(code)) return false;
+      const s = ref.current;
+      const salt = randomSalt();
+      const hash = await hashPasscode(code, salt);
+      const settings: Settings = {
+        ...s.settings,
+        lock: "passcode",
+        lockCfg: {
+          ...s.settings.lockCfg,
+          mode: "passcode",
+          passcodeHash: hash,
+          passcodeSalt: salt,
+          credentialId: null,
+          backupCode: s.settings.lockCfg.backupCode || backupGuard.current || generateBackupCode(),
+        },
+      };
+      set({ settings });
+      persistSettings(settings);
+      return true;
+    },
+    [set, persistSettings],
+  );
+
+  const checkPasscode = useCallback(async (code: string): Promise<boolean> => {
+    const cfg = ref.current.settings.lockCfg;
+    if (!cfg.passcodeHash || !cfg.passcodeSalt) return false;
+    const hash = await hashPasscode(code, cfg.passcodeSalt);
+    return safeEqual(hash, cfg.passcodeHash);
+  }, []);
+
+  const disableLock = useCallback(() => {
+    const s = ref.current;
+    const settings: Settings = {
+      ...s.settings,
+      lock: "none",
+      lockCfg: { ...s.settings.lockCfg, mode: "none", credentialId: null, passcodeHash: null, passcodeSalt: null },
+    };
+    set({ settings, locked: false });
+    persistSettings(settings);
+  }, [set, persistSettings]);
+
+  const setAutoLockMinutes = useCallback(
+    (m: number) => {
+      const s = ref.current;
+      const settings = { ...s.settings, lockCfg: { ...s.settings.lockCfg, autoLockMinutes: m } };
+      set({ settings });
+      persistSettings(settings);
+    },
+    [set, persistSettings],
+  );
+
   const value = useMemo<Store>(
     () => ({
       st,
@@ -530,6 +706,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       exportJournal,
       importJournal,
       savedAt,
+      saveProfile,
+      unlock,
+      lockNow,
+      enablePasskeyLock,
+      enablePasscodeLock,
+      disableLock,
+      checkPasscode,
+      setAutoLockMinutes,
+      ensureBackupCode,
     }),
     [
       st,
@@ -553,6 +738,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       exportJournal,
       importJournal,
       savedAt,
+      saveProfile,
+      unlock,
+      lockNow,
+      enablePasskeyLock,
+      enablePasscodeLock,
+      disableLock,
+      checkPasscode,
+      setAutoLockMinutes,
+      ensureBackupCode,
     ],
   );
 

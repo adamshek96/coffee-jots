@@ -37,6 +37,22 @@ export const DEFAULT_DEVICE: Device = {
   note: "air roaster · watt meter clipped on",
 };
 
+export const DEFAULT_PROFILE = {
+  displayName: "",
+  roastery: "",
+  avatar: null,
+  since: null,
+};
+
+export const DEFAULT_LOCK = {
+  mode: "none" as const,
+  credentialId: null,
+  passcodeHash: null,
+  passcodeSalt: null,
+  backupCode: null,
+  autoLockMinutes: 15,
+};
+
 export const DEFAULT_SETTINGS: Settings = {
   activeDeviceId: DEFAULT_DEVICE.id,
   wishlist: [],
@@ -44,6 +60,8 @@ export const DEFAULT_SETTINGS: Settings = {
   published: {},
   lock: "faceid",
   lastExportAt: null,
+  profile: DEFAULT_PROFILE,
+  lockCfg: DEFAULT_LOCK,
 };
 
 const LEGACY_KEY = "coffeejots.db.v1";
@@ -100,7 +118,15 @@ export async function loadAll(): Promise<LoadedDB> {
   const roasts = await db.roasts.orderBy("createdAt").reverse().toArray();
   const beans = await db.beans.toArray();
   const settingsRow = await db.settings.get("settings");
-  const settings: Settings = { ...DEFAULT_SETTINGS, ...((settingsRow?.value as Partial<Settings>) || {}) };
+  const stored = (settingsRow?.value as Partial<Settings>) || {};
+  // profile/lockCfg are nested, so merge them explicitly — journals saved before
+  // these existed must still pick up the defaults rather than get `undefined`.
+  const settings: Settings = {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+    profile: { ...DEFAULT_PROFILE, ...(stored.profile || {}) },
+    lockCfg: { ...DEFAULT_LOCK, ...(stored.lockCfg || {}) },
+  };
   if (!devices.find((d) => d.id === settings.activeDeviceId)) settings.activeDeviceId = devices[0].id;
   const activeRow = await db.settings.get("active");
   const active = (activeRow?.value as ActiveRoast | null) || null;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { S } from "../components/ui";
 import { C, MONO } from "../lib/constants";
+import { passkeyAvailable } from "../lib/lock";
 import { scanner } from "../lib/scan";
 import type { BagScan, MachineScan } from "../lib/scan";
 import { saveBean } from "../db";
@@ -60,6 +61,53 @@ export function Onboarding() {
 
   const go = (n: number) => set({ obStep: Math.max(0, Math.min(LAST, n)) });
   const next = () => go(step + 1);
+
+  // ---- lock setup (step 1) ----
+  // Generated in an effect (never during render) and held locally from the
+  // generator's own return value, so what's displayed is exactly what's stored
+  // — the user writes this code down, so the two must never diverge.
+  const [backupCode, setBackupCode] = useState("…");
+  useEffect(() => {
+    setBackupCode(store.ensureBackupCode());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [obCode, setObCode] = useState("");
+  const [lockBusy, setLockBusy] = useState(false);
+  const [lockNote, setLockNote] = useState("");
+  const [canPasskey, setCanPasskey] = useState(false);
+
+  useEffect(() => {
+    void passkeyAvailable().then(setCanPasskey);
+  }, []);
+
+  /** Turn the chosen lock on for real, then continue. */
+  const applyLock = async () => {
+    setLockNote("");
+    if (st.obLock === "faceid") {
+      if (!canPasskey) {
+        setLockNote("No Face ID here — pick a passcode or No lock.");
+        return;
+      }
+      setLockBusy(true);
+      const ok = await store.enablePasskeyLock();
+      setLockBusy(false);
+      if (!ok) {
+        setLockNote("Face ID setup was cancelled.");
+        return;
+      }
+    } else if (st.obLock === "passcode") {
+      if (!/^\d{4,8}$/.test(obCode)) {
+        setLockNote("Enter a 4–8 digit passcode first.");
+        return;
+      }
+      setLockBusy(true);
+      await store.enablePasscodeLock(obCode);
+      setLockBusy(false);
+    } else {
+      store.disableLock();
+    }
+    next();
+  };
 
   const scanMachine = () => {
     set({ obScan: { ...st.obScan, device: "busy" } });
@@ -216,8 +264,12 @@ export function Onboarding() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 18 }}>
               {[
-                { k: "faceid", label: "Face ID", sub: "unlock with a glance" },
-                { k: "passcode", label: "4-digit code", sub: "type it to open" },
+                {
+                  k: "faceid",
+                  label: "Face ID",
+                  sub: canPasskey ? "unlock with a glance" : "not available on this device",
+                },
+                { k: "passcode", label: "Passcode", sub: "type it to open" },
                 { k: "none", label: "No lock", sub: "open straight to the log" },
               ].map((o) => {
                 const on = st.obLock === o.k;
@@ -246,21 +298,39 @@ export function Onboarding() {
                 );
               })}
             </div>
+            {st.obLock === "passcode" ? (
+              <div style={{ marginTop: 12 }}>
+                <label style={S.fieldLabel}>Choose a passcode (4–8 digits)</label>
+                <input
+                  value={obCode}
+                  onChange={(e) => setObCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 8))}
+                  inputMode="numeric"
+                  type="password"
+                  placeholder="••••"
+                  style={{ ...S.input, fontFamily: MONO, fontSize: 22, letterSpacing: "0.3em", textAlign: "center" }}
+                />
+              </div>
+            ) : null}
             <div style={{ ...S.card, padding: "14px 16px", marginTop: 14 }}>
               <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", color: C.rust, fontWeight: 700 }}>
                 BACKUP CODE
               </div>
               <div style={{ fontFamily: MONO, fontSize: 19, fontWeight: 700, marginTop: 6, letterSpacing: "0.1em" }}>
-                JOTS-4K7M-92QX
+                {backupCode}
               </div>
               <div style={{ fontSize: 12, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
-                Write this in the front of your paper logbook. It's how you move the journal to a new phone — and the
-                only copy.
+                Write this in the front of your paper logbook. It's how you get back in if Face ID stops working or you
+                forget the passcode — and the only copy.
               </div>
             </div>
+            {lockNote ? (
+              <div style={{ fontSize: 12, color: C.rust, fontFamily: MONO, marginTop: 10, textAlign: "center" }}>
+                {lockNote}
+              </div>
+            ) : null}
           </div>
-          <button onClick={next} className="pressY" style={{ ...S.primaryBtn, marginTop: 14 }}>
-            Got it — next
+          <button onClick={() => void applyLock()} disabled={lockBusy} className="pressY" style={{ ...S.primaryBtn, marginTop: 14 }}>
+            {lockBusy ? "Setting up…" : "Got it — next"}
           </button>
         </>
       ) : null}
@@ -537,7 +607,15 @@ export function Onboarding() {
                   k: "First bean",
                   v: bag ? bag.bean.name + " · " + bag.bean.origin : st.beans[0] ? st.beans[0].name : "add one at first roast",
                 },
-                { k: "Lock", v: st.obLock === "faceid" ? "Face ID" : st.obLock === "passcode" ? "4-digit code" : "none" },
+                {
+                  k: "Lock",
+                  v:
+                    st.settings.lockCfg.mode === "passkey"
+                      ? "Face ID · on"
+                      : st.settings.lockCfg.mode === "passcode"
+                        ? "Passcode · on"
+                        : "none",
+                },
               ].map((row) => (
                 <div
                   key={row.k}

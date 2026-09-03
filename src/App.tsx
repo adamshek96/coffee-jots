@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SCREENS } from "./screens";
+import { LockScreen } from "./components/LockScreen";
 import { Toast } from "./components/ui";
 import { C } from "./lib/constants";
 import { useStore } from "./store";
@@ -21,6 +22,13 @@ export function App() {
   const wide = useWide();
 
   if (!st.loaded) return <div className="appShell" />;
+  if (st.locked)
+    return (
+      <>
+        <LockScreen />
+        <Toast msg={st.toast} />
+      </>
+    );
 
   let screen: Screen = st.screen;
   if ((screen === "live" || screen === "post") && !st.active) screen = "home";
