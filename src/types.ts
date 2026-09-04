@@ -1,4 +1,5 @@
 export type MilestoneKey =
+  | "preheat"
   | "charge"
   | "yellowing"
   | "browning"
@@ -8,7 +9,12 @@ export type MilestoneKey =
   | "drop";
 
 export interface RoastEvent {
-  t: number; // seconds since charge
+  /**
+   * Seconds relative to charge. Charge is always 0 so development %, phase
+   * balance and batch-to-batch comparison stay meaningful; a preheat tap is
+   * therefore negative (e.g. -90 = machine on 90s before the beans went in).
+   */
+  t: number;
   dial?: number;
   fan?: string | null;
   watts: number; // value of the device metric (watts or temp)
@@ -35,6 +41,7 @@ export interface Roast {
   notes?: string;
   flavors?: Record<string, number>; // family -> 0-5
   durationSec?: number;
+  preheatSec?: number; // how long the machine warmed up before charge
   deviceName?: string;
   unit?: string;
   axis?: string;
@@ -83,7 +90,7 @@ export interface Ghost {
   durationSec?: number;
 }
 
-export type ActiveStatus = "idle" | "roasting" | "cooling";
+export type ActiveStatus = "idle" | "preheating" | "roasting" | "cooling";
 
 export interface ActiveRoast {
   id: string;
@@ -101,13 +108,15 @@ export interface ActiveRoast {
   unit: string;
   axis: string;
   status: ActiveStatus;
-  startedAt: number | null; // wall-clock ms; elapsed is always recomputed
+  startedAt: number | null; // wall-clock ms of charge; elapsed is always recomputed
+  preheatAt: number | null; // wall-clock ms the machine was switched on
   dial: number;
   fan: string | null;
   watts: number;
   events: EventMap;
   coolStartedAt: number | null;
   coolDuration: number;
+  preheatSec?: number;
 }
 
 export type LockMode = "none" | "passkey" | "passcode";

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
-import { fmt, lossPct } from "../lib/calc";
+import { fmt, fmtSigned, lossPct } from "../lib/calc";
 import { C, KEYS, LEVELS, MONO, MS, PHASE, SHADES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -33,16 +33,20 @@ export function RoastDetail() {
 
   if (hasCurve) {
     const maxT = dropT || pts[pts.length - 1].t || 1;
+    // A preheat tap sits at negative time, so the x-domain starts at min(0, t).
+    const minT = Math.min(0, ...pts.map((p) => p.t));
+    const spanT = maxT - minT || 1;
     const ws = pts.map((p) => p.watts);
     let lo = Math.min(...ws);
     let hi = Math.max(...ws);
     const span = Math.max(40, hi - lo);
     lo = Math.floor((lo - span * 0.18) / 10) * 10;
     hi = Math.ceil((hi + span * 0.18) / 10) * 10;
-    const X = (t: number) => 4 + (t / maxT) * 92;
+    const X = (t: number) => 4 + ((t - minT) / spanT) * 92;
     const Y = (w: number) => 8 + (1 - (w - lo) / (hi - lo)) * 84;
     curvePath = pts.map((p, i) => (i ? "L" : "M") + X(p.t).toFixed(2) + "," + Y(p.watts).toFixed(2)).join(" ");
     const TAGS: Record<string, string> = {
+      preheat: "PH",
       charge: "CH",
       yellowing: "YE",
       browning: "BR",
@@ -65,7 +69,7 @@ export function RoastDetail() {
         x: xp.toFixed(2),
         y: Y(p.watts).toFixed(2),
         tag: TAGS[p.k],
-        tl: showTl ? fmt(p.t) : "",
+        tl: showTl ? fmtSigned(p.t) : "",
         tagShift: tagAlt ? "-320%" : "-190%",
       };
     });
@@ -89,8 +93,10 @@ export function RoastDetail() {
       const t0 = e.t;
       const t1 = nxt ? nxt.t : dropT;
       shadeSegs.push({
-        left: ((t0 / maxT) * 100).toFixed(2),
-        w: (((t1 - t0) / maxT) * 100).toFixed(2),
+        // Share the curve's x-mapping so the strip lines up when a preheat
+        // point pushes the domain negative.
+        left: X(t0).toFixed(2),
+        w: (X(t1) - X(t0)).toFixed(2),
         c: SHADES[e.shade].c,
       });
     });
@@ -118,6 +124,7 @@ export function RoastDetail() {
       v: r.greenWeight + "g → " + (typeof r.roastedWeight === "number" ? r.roastedWeight + "g" : "—"),
     },
   ];
+  if (r.preheatSec) sumRows.push({ k: "Preheat", v: fmt(r.preheatSec) + " before charge" });
   const loss = lossPct(r);
   if (loss != null) sumRows.push({ k: "Weight loss", v: loss.toFixed(1) + "%" });
   if (r.roastLevel) sumRows.push({ k: "Roast level", v: r.roastLevel });
@@ -598,7 +605,7 @@ export function RoastDetail() {
                   </span>
                 ) : null}
               </span>
-              <span style={{ fontFamily: MONO, fontSize: 12, textAlign: "right" }}>{fmt(e.t)}</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, textAlign: "right" }}>{fmtSigned(e.t)}</span>
               <span style={{ fontFamily: MONO, fontSize: 12, textAlign: "right" }}>{e.dial ? String(e.dial) : "—"}</span>
               <span style={{ fontFamily: MONO, fontSize: 12, textAlign: "right" }}>{e.watts + (r.unit || "W")}</span>
             </div>

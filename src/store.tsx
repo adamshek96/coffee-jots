@@ -87,7 +87,7 @@ export interface AppState {
  * front of the milestone rail. Applies on launch and to auto-lock alike.
  */
 function roastInProgress(a: ActiveRoast | null): boolean {
-  return !!a && (a.status === "roasting" || a.status === "cooling");
+  return !!a && (a.status === "preheating" || a.status === "roasting" || a.status === "cooling");
 }
 
 const initialState: AppState = {
@@ -281,11 +281,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const a = s.active;
       if (!a) return;
       const next: ActiveRoast = { ...a, events: { ...a.events } };
-      if (key === "charge") {
+      if (key === "preheat") {
+        if (a.events.preheat || a.startedAt) return;
+        next.preheatAt = Date.now();
+        next.status = "preheating";
+        // t is provisional — it becomes negative (relative to charge) below.
+        next.events.preheat = { t: 0, dial: a.dial, fan: a.fan, watts: a.watts };
+      } else if (key === "charge") {
         if (a.events.charge) return;
-        next.startedAt = Date.now();
+        const now = Date.now();
+        next.startedAt = now;
         next.status = "roasting";
         next.events.charge = { t: 0, dial: a.dial, fan: a.fan, watts: a.watts };
+        if (a.preheatAt) {
+          // Re-anchor preheat to charge: negative seconds before beans-in.
+          const preheatSec = (now - a.preheatAt) / 1000;
+          next.events.preheat = { ...next.events.preheat!, t: -preheatSec };
+          next.preheatSec = preheatSec;
+        }
       } else {
         if (!a.startedAt || a.events[key]) return;
         const t = (Date.now() - a.startedAt) / 1000;
@@ -301,7 +314,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
       vibrate();
-      set({ active: next, obsKey: key });
+      // No bean colour or sound to log at preheat — the machine is still empty.
+      set({ active: next, obsKey: key === "preheat" ? null : key });
       persistActive(next);
     },
     [set, persistActive],
@@ -364,6 +378,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       axis: D.axis,
       status: "idle",
       startedAt: null,
+      preheatAt: null,
       dial: D.heatMax ? Math.ceil(D.heatMax * 0.6) : 0,
       fan: D.fanOpts ? D.fanOpts[Math.min(1, D.fanOpts.length - 1)] : null,
       watts: (METRICS[device.metric] || METRICS.watts).start,
@@ -403,6 +418,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notes: s.postNotes,
       flavors: { ...s.postFlavors },
       durationSec: total,
+      preheatSec: a.preheatSec,
       finishedAt: Date.now(),
     };
     set({ roasts: [rec, ...s.roasts], active: null, detailId: rec.id, compareId: null, screen: "detail" });

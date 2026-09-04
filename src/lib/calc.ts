@@ -7,6 +7,11 @@ export function fmt(s: number): string {
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
 
+/** Like fmt, but keeps the sign — preheat times are negative (before charge). */
+export function fmtSigned(s: number): string {
+  return (s < 0 ? "−" : "") + fmt(Math.abs(s));
+}
+
 /** Heat-dial color ramp, straw yellow -> deep red. */
 export function ramp(n: number): string[] {
   const A = [231, 193, 92];
@@ -119,7 +124,10 @@ export function curveFor(r: Roast): CurveGeom | null {
   const span = Math.max(40, hi - lo);
   lo = Math.floor((lo - span * 0.18) / 10) * 10;
   hi = Math.ceil((hi + span * 0.18) / 10) * 10;
-  const X = (t: number) => 3 + (t / (dropT || 1)) * 94;
+  // Preheat sits at negative time, so the domain starts at min(0, t).
+  const minT = Math.min(0, ...pts.map((p) => p.t));
+  const spanT = (dropT || 1) - minT || 1;
+  const X = (t: number) => 3 + ((t - minT) / spanT) * 94;
   const Y = (w: number) => 8 + (1 - (w - lo) / (hi - lo)) * 84;
   const kk = KEYS.filter((k) => ev[k]);
   const shadeSegs: CurveGeom["shadeSegs"] = [];
@@ -129,8 +137,8 @@ export function curveFor(r: Roast): CurveGeom | null {
     if (e.shade == null) return;
     const t1 = n ? n.t : dropT;
     shadeSegs.push({
-      left: ((e.t / dropT) * 100).toFixed(2),
-      w: (((t1 - e.t) / dropT) * 100).toFixed(2),
+      left: X(e.t).toFixed(2),
+      w: (X(t1) - X(e.t)).toFixed(2),
       c: SHADES[e.shade].c,
     });
   });

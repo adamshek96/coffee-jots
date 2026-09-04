@@ -100,10 +100,20 @@ export const FANS: Record<FanKind, string[] | null> = {
 };
 
 // ---- milestones, in rail order ----
-export const KEYS: MilestoneKey[] = ["charge", "yellowing", "browning", "fc", "fcEnds", "cooling", "drop"];
+export const KEYS: MilestoneKey[] = [
+  "preheat",
+  "charge",
+  "yellowing",
+  "browning",
+  "fc",
+  "fcEnds",
+  "cooling",
+  "drop",
+];
 
 export const MS: { key: MilestoneKey; label: string; hint: string }[] = [
-  { key: "charge", label: "Charge", hint: "beans in, timer starts" },
+  { key: "preheat", label: "Preheat", hint: "machine on, warming up" },
+  { key: "charge", label: "Charge", hint: "beans in, clock resets to 0:00" },
   { key: "yellowing", label: "Yellowing", hint: "drying done, straw color" },
   { key: "browning", label: "Browning", hint: "maillard, smells bready" },
   { key: "fc", label: "First Crack", hint: "first snaps" },

@@ -35,7 +35,7 @@ export function LiveRoast() {
   // recomputed from startedAt so backgrounding or reloading never loses it.
   useEffect(() => {
     const iv = setInterval(() => {
-      if (a.status === "roasting" || a.status === "cooling") tick();
+      if (a.status === "preheating" || a.status === "roasting" || a.status === "cooling") tick();
     }, 250);
     return () => clearInterval(iv);
   }, [a.status]);
@@ -45,6 +45,13 @@ export function LiveRoast() {
 
   const now = Date.now();
   const elapsed = a.startedAt ? (now - a.startedAt) / 1000 : 0;
+  const preheating = a.status === "preheating";
+  // Live preheat time; once charged it's frozen at the recorded duration.
+  const preheatElapsed = a.preheatAt
+    ? a.startedAt
+      ? (a.startedAt - a.preheatAt) / 1000
+      : (now - a.preheatAt) / 1000
+    : 0;
   const cooling = a.status === "cooling";
   const coolLeft = cooling && a.coolStartedAt ? Math.max(0, a.coolDuration - (now - a.coolStartedAt) / 1000) : 0;
   const ev = a.events;
@@ -58,8 +65,11 @@ export function LiveRoast() {
   let paceText = "";
   let paceColor = "#5C5346";
   if (G) {
-    const nk = MS.find((m) => !ev[m.key] && G.events[m.key]);
-    if (a.status === "idle") paceText = "Pacing against batch " + G.batch + (G.rating ? " · " + "★".repeat(G.rating) : "");
+    // Preheat is excluded: its target time is negative, so pacing against it
+    // would always read as absurdly "late".
+    const nk = MS.find((m) => m.key !== "preheat" && !ev[m.key] && G.events[m.key]);
+    if (a.status === "idle" || preheating)
+      paceText = "Pacing against batch " + G.batch + (G.rating ? " · " + "★".repeat(G.rating) : "");
     else if (nk) {
       const target = G.events[nk.key]!.t;
       const d = elapsed - target;
@@ -73,7 +83,14 @@ export function LiveRoast() {
     } else paceText = "Past batch " + G.batch + "'s last marker";
   }
 
-  const nextKey = MS.find((m) => !ev[m.key])?.key;
+  // First milestone that's neither recorded nor locked — so skipping preheat
+  // still leaves Charge as the pulsing next step.
+  const nextKey = MS.find((m) => {
+    if (ev[m.key]) return false;
+    if (m.key === "preheat") return !a.startedAt;
+    if (m.key === "charge") return true;
+    return !!a.startedAt;
+  })?.key;
   const nx = MS.find((m) => m.key === nextKey);
   const RAMP = ramp(D.heatMax || 1);
   const SP = D.steps || [10, 5];
@@ -126,7 +143,8 @@ export function LiveRoast() {
               " · " +
               a.greenWeight +
               " g green" +
-              (a.process ? " · " + a.process.toLowerCase() : "")}
+              (a.process ? " · " + a.process.toLowerCase() : "") +
+              (a.startedAt && a.preheatAt ? " · preheat " + fmt(preheatElapsed) : "")}
           </div>
         </div>
       </div>
@@ -173,7 +191,7 @@ export function LiveRoast() {
                   textShadow: `0 0 12px ${glow}`,
                 }}
               >
-                {cooling ? fmt(coolLeft) : fmt(elapsed)}
+                {cooling ? fmt(coolLeft) : preheating ? fmt(preheatElapsed) : fmt(elapsed)}
               </div>
               <div
                 style={{
@@ -182,10 +200,10 @@ export function LiveRoast() {
                   color: "#5F6B74",
                   textTransform: "uppercase",
                   marginTop: 6,
-                  animation: cooling ? "cjBlink 1.4s infinite" : "none",
+                  animation: cooling || preheating ? "cjBlink 1.4s infinite" : "none",
                 }}
               >
-                {cooling ? "Cooling" : a.status === "idle" ? "Ready" : "Roasting"}
+                {cooling ? "Cooling" : preheating ? "Preheat" : a.status === "idle" ? "Ready" : "Roasting"}
               </div>
             </div>
             <div style={{ flex: 1, textAlign: "center", paddingLeft: 8 }}>
@@ -265,7 +283,7 @@ export function LiveRoast() {
                 whiteSpace: "nowrap",
               }}
             >
-              {cooling ? "COOLING" : phase ? phase.toUpperCase() : "STANDBY"}
+              {cooling ? "COOLING" : preheating ? "PREHEAT" : phase ? phase.toUpperCase() : "STANDBY"}
             </div>
           </div>
 
@@ -433,7 +451,10 @@ export function LiveRoast() {
           <div style={{ width: 112, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7 }}>
             {MS.map((m) => {
               const e = ev[m.key];
-              const locked = m.key !== "charge" && !a.startedAt;
+              // Preheat and charge are both available from the start (preheat is
+              // optional); everything after charge needs the roast running.
+              const locked =
+                m.key === "preheat" ? !!a.startedAt : m.key === "charge" ? false : !a.startedAt;
               const isNext = m.key === nextKey && !locked;
               const gt = G && G.events[m.key] ? G.events[m.key]!.t : null;
               let sub = "";
@@ -496,7 +517,15 @@ export function LiveRoast() {
                         color: e ? C.oliveDeep : isNext ? C.rust : C.muted,
                       }}
                     >
-                      {e ? fmt(e.t) : isNext ? "TAP" : "—"}
+                      {m.key === "preheat" && e
+                        ? a.startedAt
+                          ? "−" + fmt(preheatElapsed)
+                          : fmt(preheatElapsed)
+                        : e
+                          ? fmt(e.t)
+                          : isNext
+                            ? "TAP"
+                            : "—"}
                     </span>
                     {sub ? (
                       <span
@@ -617,10 +646,12 @@ export function LiveRoast() {
       {!cooling ? (
         <div style={{ fontSize: 12, color: C.muted, marginTop: 12, textAlign: "center" }}>
           {a.status === "idle"
-            ? "Set heat and fan, then tap CHARGE when the beans go in."
-            : nx
-              ? "Next — " + nx.label + ": " + nx.hint
-              : ""}
+            ? "Set your heat and fan, then tap PREHEAT when you switch the machine on — or go straight to CHARGE."
+            : preheating
+              ? "Warming up. Tap CHARGE when the beans go in — the clock restarts at 0:00 there."
+              : nx
+                ? "Next — " + nx.label + ": " + nx.hint
+                : ""}
         </div>
       ) : (
         <button
