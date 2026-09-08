@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
 import type { CSSProperties } from "react";
-import { S } from "../components/ui";
+import { DangerAction, S } from "../components/ui";
 import { fmt, fmtSigned, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
 import { keepAwake } from "../lib/wakeLock";
@@ -718,24 +718,13 @@ export function LiveRoast() {
         </div>
       )}
 
-      <div style={{ textAlign: "center", marginTop: 18 }}>
-        <button
-          onClick={() => {
-            if (window.confirm("Discard this roast? Nothing will be saved to the journal.")) discardActive();
-          }}
-          style={{
-            border: "none",
-            background: "none",
-            color: C.muted,
-            fontSize: 12,
-            textDecoration: "underline",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            padding: 8,
-          }}
-        >
-          Discard this roast
-        </button>
+      <div style={{ marginTop: 18 }}>
+        <DangerAction
+          label="Discard this roast"
+          message="Discard this roast? Nothing will be saved to the journal."
+          confirmLabel="Discard"
+          onConfirm={discardActive}
+        />
       </div>
     </div>
   );

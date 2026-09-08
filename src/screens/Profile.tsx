@@ -261,10 +261,8 @@ export function Profile() {
             on={cfg.mode === "none"}
             onClick={() => {
               if (cfg.mode === "none") return;
-              if (window.confirm("Turn the lock off? Anyone who opens the app will see your journal.")) {
-                disableLock();
-                flash("Lock removed");
-              }
+              disableLock();
+              flash("Lock removed");
             }}
           />
         </div>

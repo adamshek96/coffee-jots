@@ -62,6 +62,7 @@ export interface AppState {
   draft: Device | null;
   beanDraft: Bean | null;
   roastDraft: Roast | null;
+  pendingImport: ExportShape | null;
   ghostOn: boolean;
   compareId: string | null;
   shareKind: "roast" | "passport" | null;
@@ -110,6 +111,7 @@ const initialState: AppState = {
   draft: null,
   beanDraft: null,
   roastDraft: null,
+  pendingImport: null,
   ghostOn: true,
   compareId: null,
   shareKind: null,
@@ -153,12 +155,15 @@ export interface Store {
   deleteBeanDraft: () => void;
   saveRoastDraft: () => void;
   deleteRoastDraft: () => void;
+  setBeanFlavors: (beanId: string, flavors: Record<string, number>) => void;
   useDevice: (id: string) => void;
   toggleWishlist: (origin: string) => void;
   togglePublish: (roastId: string) => void;
   finishOnboarding: (toast?: string) => void;
   exportJournal: () => void;
   importJournal: (file: File) => void;
+  confirmImport: () => void;
+  cancelImport: () => void;
   savedAt: number | null;
   // profile + lock
   saveProfile: (p: Partial<Profile>) => void;
@@ -582,6 +587,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     flash("Roast deleted");
   }, [set, touch, flash, persistSettings]);
 
+  /** Set a bean's tasting profile directly (used from the roast editor). */
+  const setBeanFlavors = useCallback(
+    (beanId: string, flavors: Record<string, number>) => {
+      const s = ref.current;
+      const bean = s.beans.find((b) => b.id === beanId);
+      if (!bean) return;
+      const updated = { ...bean, flavors };
+      set({ beans: s.beans.map((b) => (b.id === beanId ? updated : b)) });
+      void saveBean(updated).then(touch);
+    },
+    [set, touch],
+  );
+
   const useDevice = useCallback(
     (id: string) => {
       const settings = { ...ref.current.settings, activeDeviceId: id };
@@ -658,46 +676,57 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     flash("Journal exported");
   }, [set, persistSettings, flash]);
 
+  /** Apply a parsed journal, replacing what's on the device. */
+  const applyImport = useCallback(
+    (d: ExportShape) => {
+      const s = ref.current;
+      const beans: Bean[] = Array.isArray(d.beans) ? d.beans : s.beans;
+      const devices: Device[] = Array.isArray(d.devices) && d.devices.length ? d.devices : s.devices;
+      const roasts: Roast[] = [...d.roasts].sort((a, b) => b.createdAt - a.createdAt);
+      const settings = {
+        ...s.settings,
+        wishlist: Array.isArray(d.wishlist) ? d.wishlist : [],
+        activeDeviceId: devices.find((x) => x.id === s.settings.activeDeviceId)
+          ? s.settings.activeDeviceId
+          : devices[0].id,
+      };
+      set({ roasts, beans, devices, settings, pendingImport: null, screen: "home" });
+      void Promise.all([replaceRoasts(roasts), replaceBeans(beans), replaceDevices(devices)]).then(touch);
+      persistSettings(settings);
+      flash("Imported " + roasts.length + " roasts");
+    },
+    [set, persistSettings, flash, touch],
+  );
+
+  /**
+   * Read a backup file. If it would overwrite an existing journal we stash it
+   * and let the UI confirm — a native confirm() is silently suppressed in
+   * installed PWAs, which would drop the import without explanation.
+   */
   const importJournal = useCallback(
     (file: File) => {
       const fr = new FileReader();
       fr.onload = () => {
         try {
-          const d = JSON.parse(String(fr.result));
+          const d = JSON.parse(String(fr.result)) as ExportShape;
           if (!d.roasts || !Array.isArray(d.roasts)) throw new Error("bad file");
-          const s = ref.current;
-          if (s.roasts.length > 0) {
-            const ok = window.confirm(
-              "Restore will replace the " +
-                s.roasts.length +
-                " roasts on this device with the " +
-                d.roasts.length +
-                " in the file. Continue?",
-            );
-            if (!ok) return;
-          }
-          const beans: Bean[] = Array.isArray(d.beans) ? d.beans : s.beans;
-          const devices: Device[] = Array.isArray(d.devices) && d.devices.length ? d.devices : s.devices;
-          const roasts: Roast[] = [...d.roasts].sort((a, b) => b.createdAt - a.createdAt);
-          const settings = {
-            ...s.settings,
-            wishlist: Array.isArray(d.wishlist) ? d.wishlist : [],
-            activeDeviceId: devices.find((x) => x.id === s.settings.activeDeviceId)
-              ? s.settings.activeDeviceId
-              : devices[0].id,
-          };
-          set({ roasts, beans, devices, settings, screen: "home" });
-          void Promise.all([replaceRoasts(roasts), replaceBeans(beans), replaceDevices(devices)]).then(touch);
-          persistSettings(settings);
-          flash("Imported " + roasts.length + " roasts");
+          if (ref.current.roasts.length > 0) set({ pendingImport: d });
+          else applyImport(d);
         } catch {
           flash("That file isn't a Jots journal");
         }
       };
       fr.readAsText(file);
     },
-    [set, persistSettings, flash, touch],
+    [set, flash, applyImport],
   );
+
+  const confirmImport = useCallback(() => {
+    const d = ref.current.pendingImport;
+    if (d) applyImport(d);
+  }, [applyImport]);
+
+  const cancelImport = useCallback(() => set({ pendingImport: null }), [set]);
 
   // ---- profile ----
 
@@ -837,12 +866,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteBeanDraft,
       saveRoastDraft,
       deleteRoastDraft,
+      setBeanFlavors,
       useDevice,
       toggleWishlist,
       togglePublish,
       finishOnboarding,
       exportJournal,
       importJournal,
+      confirmImport,
+      cancelImport,
       savedAt,
       saveProfile,
       unlock,
@@ -874,12 +906,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteBeanDraft,
       saveRoastDraft,
       deleteRoastDraft,
+      setBeanFlavors,
       useDevice,
       toggleWishlist,
       togglePublish,
       finishOnboarding,
       exportJournal,
       importJournal,
+      confirmImport,
+      cancelImport,
       savedAt,
       saveProfile,
       unlock,

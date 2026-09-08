@@ -1,4 +1,5 @@
-import { Chip, S, ScreenHeader } from "../components/ui";
+import { EditableWheel } from "../components/FlavorWheel";
+import { Chip, DangerAction, S, ScreenHeader } from "../components/ui";
 import { fmt } from "../lib/calc";
 import { C, EVEN_CAPTIONS, EVEN_DOTS, LEVELS, MONO } from "../lib/constants";
 import { useStore } from "../store";
@@ -6,7 +7,7 @@ import type { Roast } from "../types";
 
 /** Edit or delete a roast already in the journal. */
 export function RoastEdit() {
-  const { st, set, saveRoastDraft, deleteRoastDraft } = useStore();
+  const { st, set, saveRoastDraft, deleteRoastDraft, setBeanFlavors } = useStore();
   const dr = st.roastDraft;
   if (!dr) return null;
 
@@ -14,6 +15,10 @@ export function RoastEdit() {
   const green = dr.greenWeight || 0;
   const rw = typeof dr.roastedWeight === "number" ? dr.roastedWeight : NaN;
   const hasLoss = rw > 0 && green > 0;
+
+  // Flavour lives on the bean; fall back to the roast for orphaned entries.
+  const bean = st.beans.find((b) => b.id === dr.beanId || b.name === dr.beanName);
+  const beanFlavors = (bean ? bean.flavors : dr.flavors) || {};
 
   const numField = (v: number | null | undefined) => (v == null || isNaN(v as number) ? "" : String(v));
 
@@ -225,6 +230,23 @@ export function RoastEdit() {
         </div>
       </div>
 
+      {/* flavour — stored on the bean, editable here for convenience */}
+      <div style={{ ...S.card, marginTop: 12 }}>
+        <div style={S.sectionLabel}>Flavor wheel</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>
+          {bean
+            ? `Tap a family to set intensity. Saved on the "${bean.name}" bean profile, so every batch of it shares these notes.`
+            : "This roast has no bean profile, so tasting notes are stored on the roast itself."}
+        </div>
+        <EditableWheel
+          flavors={beanFlavors}
+          onChange={(next) => {
+            if (bean) setBeanFlavors(bean.id, next);
+            else patch({ flavors: next });
+          }}
+        />
+      </div>
+
       {/* notes */}
       <div style={{ ...S.card, marginTop: 12 }}>
         <label style={S.fieldLabel}>Notes</label>
@@ -272,31 +294,12 @@ export function RoastEdit() {
         Save changes
       </button>
 
-      <div style={{ textAlign: "center", marginTop: 10 }}>
-        <button
-          onClick={() => {
-            if (
-              window.confirm(
-                `Delete batch ${dr.batch || 1} of ${dr.beanName}? This removes the roast and its curve from your journal for good.`,
-              )
-            ) {
-              deleteRoastDraft();
-            }
-          }}
-          style={{
-            border: "none",
-            background: "none",
-            color: C.rust,
-            fontSize: 12,
-            textDecoration: "underline",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            padding: 8,
-          }}
-        >
-          Delete this roast
-        </button>
-      </div>
+      <DangerAction
+        label="Delete this roast"
+        message={`Delete batch ${dr.batch || 1} of ${dr.beanName}? This removes the roast and its curve from your journal for good.`}
+        confirmLabel="Delete roast"
+        onConfirm={deleteRoastDraft}
+      />
     </div>
   );
 }

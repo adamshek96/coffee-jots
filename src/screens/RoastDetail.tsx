@@ -558,15 +558,42 @@ export function RoastDetail() {
       ) : null}
 
       {/* flavor wheel */}
-      {hasFlavor ? (
-        <div style={{ ...S.card, marginTop: 12 }}>
-          <div style={S.sectionLabel}>Flavor wheel{bean?.flavors && Object.keys(bean.flavors).length ? " · bean profile" : ""}</div>
+      {/* Always shown — an empty wheel is a prompt, not a reason to hide it. */}
+      <div style={{ ...S.card, marginTop: 12 }}>
+        <div style={S.sectionLabel}>Flavor wheel{bean ? " · bean profile" : ""}</div>
+        {hasFlavor ? (
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10 }}>
             <StaticWheel flavors={flavors} />
             <WheelChips flavors={flavors} />
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+              No tasting notes yet{bean ? ` for ${bean.name}` : ""}. Set them once and every batch of this bean shares
+              them.
+            </div>
+            <button
+              onClick={() => set({ screen: "roastEdit", roastDraft: { ...r } })}
+              className="pressY"
+              style={{
+                width: "100%",
+                marginTop: 12,
+                border: `1px solid ${C.hair}`,
+                background: C.field,
+                color: C.ink,
+                borderRadius: 11,
+                padding: 12,
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Add tasting notes
+            </button>
+          </>
+        )}
+      </div>
 
       {/* summary */}
       <div style={{ ...S.card, marginTop: 12 }}>

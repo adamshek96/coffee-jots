@@ -221,6 +221,55 @@ export function Home() {
         + &nbsp;Start new roast
       </button>
 
+      {st.pendingImport ? (
+        <div style={{ ...S.card, border: `1.5px solid ${C.rust}`, padding: "14px 16px", marginTop: 12 }}>
+          <div style={{ ...S.sectionLabel, color: C.rust }}>Restore backup?</div>
+          <div style={{ fontSize: 13, color: C.ink, marginTop: 6, lineHeight: 1.5 }}>
+            This replaces the {roasts.length} roast{roasts.length === 1 ? "" : "s"} on this device with the{" "}
+            {st.pendingImport.roasts.length} in the file. Your current journal can't be recovered afterwards unless
+            you've exported it.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              onClick={store.confirmImport}
+              className="pressY"
+              style={{
+                flex: 1,
+                border: `1px solid ${C.rust}`,
+                background: C.rust,
+                color: C.cream,
+                borderRadius: 11,
+                padding: 12,
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Replace journal
+            </button>
+            <button
+              onClick={store.cancelImport}
+              className="pressY"
+              style={{
+                flex: 1,
+                border: `1px solid ${C.hair}`,
+                background: "transparent",
+                color: C.ink,
+                borderRadius: 11,
+                padding: 12,
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {needsBackup ? (
         <div
           style={{

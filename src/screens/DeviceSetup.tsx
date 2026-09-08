@@ -1,4 +1,4 @@
-import { Chip, S, ScreenHeader } from "../components/ui";
+import { Chip, DangerAction, S, ScreenHeader } from "../components/ui";
 import { fmt } from "../lib/calc";
 import { C, METRICS, MONO } from "../lib/constants";
 import { useStore } from "../store";
@@ -137,27 +137,12 @@ export function DeviceSetup() {
         Save device
       </button>
       {canDelete ? (
-        <div style={{ textAlign: "center", marginTop: 10 }}>
-          <button
-            onClick={() => {
-              if (window.confirm("Delete " + (dr.name || "this device") + "? Past roasts keep their own copy of its settings.")) {
-                deleteDraft();
-              }
-            }}
-            style={{
-              border: "none",
-              background: "none",
-              color: C.rust,
-              fontSize: 12,
-              textDecoration: "underline",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              padding: 8,
-            }}
-          >
-            Delete this device
-          </button>
-        </div>
+        <DangerAction
+          label="Delete this device"
+          message={`Delete ${dr.name || "this device"}? Past roasts keep their own copy of its settings.`}
+          confirmLabel="Delete device"
+          onConfirm={deleteDraft}
+        />
       ) : null}
     </div>
   );

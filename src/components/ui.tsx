@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { C, GROT, MONO } from "../lib/constants";
 
@@ -127,6 +128,101 @@ export function Chip({
     >
       {label}
     </button>
+  );
+}
+
+/**
+ * Two-step destructive action, in-page.
+ *
+ * Deliberately not window.confirm(): installed PWAs and browsers that have had
+ * "prevent additional dialogs" ticked suppress native dialogs and return false,
+ * which silently swallowed deletes.
+ */
+export function DangerAction({
+  label,
+  message,
+  confirmLabel,
+  onConfirm,
+}: {
+  label: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+
+  if (!armed) {
+    return (
+      <div style={{ textAlign: "center", marginTop: 10 }}>
+        <button
+          onClick={() => setArmed(true)}
+          style={{
+            border: "none",
+            background: "none",
+            color: C.rust,
+            fontSize: 12,
+            textDecoration: "underline",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: 8,
+          }}
+        >
+          {label}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        ...S.card,
+        border: `1.5px solid ${C.rust}`,
+        marginTop: 10,
+        padding: "14px 16px",
+      }}
+      role="alertdialog"
+    >
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink }}>{message}</div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button
+          onClick={onConfirm}
+          className="pressY"
+          style={{
+            flex: 1,
+            border: `1px solid ${C.rust}`,
+            background: C.rust,
+            color: C.cream,
+            borderRadius: 11,
+            padding: 12,
+            fontFamily: "inherit",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {confirmLabel}
+        </button>
+        <button
+          onClick={() => setArmed(false)}
+          className="pressY"
+          style={{
+            flex: 1,
+            border: `1px solid ${C.hair}`,
+            background: "transparent",
+            color: C.ink,
+            borderRadius: 11,
+            padding: 12,
+            fontFamily: "inherit",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
