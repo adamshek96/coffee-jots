@@ -65,9 +65,15 @@ export function Analytics() {
   });
 
   // averaged flavor wheel
+  // Flavour lives on the bean now — weight each bean by how often it's roasted,
+  // falling back to any per-roast flavours logged before the move.
   const agg: Record<string, number> = {};
+  const flavorSources = R.map((r) => {
+    const bean = st.beans.find((b) => b.id === r.beanId || b.name === r.beanName);
+    return bean?.flavors && Object.keys(bean.flavors).length ? bean.flavors : r.flavors;
+  }).filter(Boolean) as Record<string, number>[];
   FAMILIES.forEach((f) => {
-    const vs = R.filter((r) => r.flavors && r.flavors[f.name]).map((r) => r.flavors![f.name]);
+    const vs = flavorSources.filter((fl) => fl[f.name]).map((fl) => fl[f.name]);
     const a = avg(vs);
     if (a != null) agg[f.name] = a;
   });

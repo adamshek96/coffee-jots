@@ -5,6 +5,7 @@ export type MilestoneKey =
   | "browning"
   | "fc"
   | "fcEnds"
+  | "extend"
   | "cooling"
   | "drop";
 
@@ -23,6 +24,17 @@ export interface RoastEvent {
 }
 
 export type EventMap = Partial<Record<MilestoneKey, RoastEvent>>;
+
+/**
+ * A colour/sound reading taken at any moment during the roast, independent of
+ * milestone taps — you watch the beans continuously, not only at checkpoints.
+ * `t` is charge-relative like RoastEvent (negative during preheat).
+ */
+export interface Observation {
+  t: number;
+  shade?: number; // index into SHADES
+  sound?: string; // one of SOUNDS
+}
 
 export interface Roast {
   id: string;
@@ -46,6 +58,7 @@ export interface Roast {
   unit?: string;
   axis?: string;
   events: EventMap;
+  observations?: Observation[];
   finishedAt?: number;
 }
 
@@ -53,8 +66,11 @@ export interface Bean {
   id: string;
   name: string;
   origin?: string;
+  region?: string;
   process?: string;
   desc?: string;
+  /** Tasting profile lives with the bean, not the individual roast. */
+  flavors?: Record<string, number>;
 }
 
 export type MetricKind = "watts" | "tempF" | "tempC";
@@ -67,6 +83,7 @@ export interface Device {
   heatMax: number; // 0 = no heat dial
   fan: FanKind;
   coolDefault: number; // seconds
+  coolWatts?: number; // metric value to drop to when Cooling is tapped
   note?: string;
 }
 
@@ -81,6 +98,7 @@ export interface DevSnap {
   heatMax: number;
   fanOpts: string[] | null;
   coolDefault: number;
+  coolWatts: number | null;
 }
 
 export interface Ghost {
@@ -90,7 +108,7 @@ export interface Ghost {
   durationSec?: number;
 }
 
-export type ActiveStatus = "idle" | "preheating" | "roasting" | "cooling";
+export type ActiveStatus = "idle" | "preheating" | "roasting" | "cooling" | "done";
 
 export interface ActiveRoast {
   id: string;
@@ -114,9 +132,12 @@ export interface ActiveRoast {
   fan: string | null;
   watts: number;
   events: EventMap;
+  observations: Observation[];
   coolStartedAt: number | null;
   coolDuration: number;
   preheatSec?: number;
+  /** Wall-clock ms of Drop — roast timing stops here. */
+  droppedAt?: number | null;
 }
 
 export type LockMode = "none" | "passkey" | "passcode";

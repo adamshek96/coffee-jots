@@ -85,35 +85,56 @@ export function RoastDetail() {
         )
         .join(" ");
     }
-    const kk = KEYS.filter((k) => ev[k]);
-    kk.forEach((k, i) => {
-      const e = ev[k]!;
-      const nxt = kk[i + 1] ? ev[kk[i + 1]]! : null;
-      if (e.shade == null) return;
-      const t0 = e.t;
-      const t1 = nxt ? nxt.t : dropT;
-      shadeSegs.push({
+    // Prefer the free-running observation timeline; fall back to the per-event
+    // shades that roasts logged before observations existed still carry.
+    const shadeObs = (r.observations || []).filter((o) => o.shade != null).sort((x, y) => x.t - y.t);
+    if (shadeObs.length) {
+      shadeObs.forEach((o, i) => {
+        const t1 = shadeObs[i + 1] ? shadeObs[i + 1].t : dropT;
+        shadeSegs.push({
+          left: X(o.t).toFixed(2),
+          w: (X(t1) - X(o.t)).toFixed(2),
+          c: SHADES[o.shade!].c,
+        });
+      });
+    } else {
+      const kk = KEYS.filter((k) => ev[k]);
+      kk.forEach((k, i) => {
+        const e = ev[k]!;
+        const nxt = kk[i + 1] ? ev[kk[i + 1]]! : null;
+        if (e.shade == null) return;
         // Share the curve's x-mapping so the strip lines up when a preheat
         // point pushes the domain negative.
-        left: X(t0).toFixed(2),
-        w: (X(t1) - X(t0)).toFixed(2),
-        c: SHADES[e.shade].c,
+        shadeSegs.push({
+          left: X(e.t).toFixed(2),
+          w: (X(nxt ? nxt.t : dropT) - X(e.t)).toFixed(2),
+          c: SHADES[e.shade].c,
+        });
       });
-    });
+    }
     const mid = Math.round((lo + hi) / 2 / 10) * 10;
     yTicks = [hi, mid, lo].map((w) => ({ topPct: Y(w).toFixed(2), label: String(w) }));
     const rects: { left: number; w: number; fill: string }[] = [];
     if (ev.yellowing) rects.push({ left: X(0), w: X(ev.yellowing.t) - X(0), fill: PHASE.drying + "2E" });
     if (ev.yellowing && ev.fc)
       rects.push({ left: X(ev.yellowing.t), w: X(ev.fc.t) - X(ev.yellowing.t), fill: PHASE.maillard + "2E" });
-    if (ev.fc && dropT) rects.push({ left: X(ev.fc.t), w: X(dropT) - X(ev.fc.t), fill: PHASE.development + "2E" });
+    if (ev.fc && dropT) {
+      const devEnd = ev.extend ? ev.extend.t : dropT;
+      rects.push({ left: X(ev.fc.t), w: X(devEnd) - X(ev.fc.t), fill: PHASE.development + "2E" });
+      if (ev.extend) rects.push({ left: X(ev.extend.t), w: X(dropT) - X(ev.extend.t), fill: PHASE.extended + "2E" });
+    }
     phaseRects = rects.map((x) => ({ left: x.left.toFixed(2), w: x.w.toFixed(2), fill: x.fill }));
   }
 
   const phases: { key: string; label: string; d: number }[] = [];
   if (ev.yellowing) phases.push({ key: "drying", label: "Drying", d: ev.yellowing.t });
   if (ev.yellowing && ev.fc) phases.push({ key: "maillard", label: "Maillard", d: ev.fc.t - ev.yellowing.t });
-  if (ev.fc && dropT) phases.push({ key: "development", label: "Development", d: dropT - ev.fc.t });
+  if (ev.fc && dropT) {
+    // An Extend tap splits development into the normal window and the held tail.
+    const devEnd = ev.extend ? ev.extend.t : dropT;
+    phases.push({ key: "development", label: "Development", d: devEnd - ev.fc.t });
+    if (ev.extend) phases.push({ key: "extended", label: "Extended", d: dropT - ev.extend.t });
+  }
   const pTotal = phases.reduce((x, p) => x + p.d, 0) || 1;
 
   const sumRows: { k: string; v: string }[] = [
@@ -145,8 +166,11 @@ export function RoastDetail() {
     return l != null ? l.toFixed(1) + "%" : "—";
   };
 
-  const flavors = r.flavors || {};
+  // Tasting profile belongs to the bean now; older roasts still carry their own.
+  const bean = st.beans.find((b) => b.id === r.beanId || b.name === r.beanName);
+  const flavors = bean?.flavors && Object.keys(bean.flavors).length ? bean.flavors : r.flavors || {};
   const hasFlavor = Object.keys(flavors).some((k) => flavors[k]);
+  const shadeObs = (r.observations || []).filter((o) => o.shade != null || o.sound);
 
   return (
     <div>
@@ -154,26 +178,46 @@ export function RoastDetail() {
         title="Roast details"
         onBack={() => set({ screen: "home" })}
         right={
-          <button
-            onClick={() => set({ screen: "share", shareKind: "roast", shareId: r.id })}
-            className="pressS"
-            style={{
-              height: 40,
-              padding: "0 14px",
-              borderRadius: 12,
-              border: `1px solid ${C.olive}`,
-              background: C.olive,
-              color: C.cream,
-              fontFamily: MONO,
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            SHARE
-          </button>
+          <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
+            <button
+              onClick={() => set({ screen: "roastEdit", roastDraft: { ...r } })}
+              className="pressS"
+              style={{
+                height: 40,
+                padding: "0 13px",
+                borderRadius: 12,
+                border: `1px solid ${C.hair}`,
+                background: C.card,
+                color: C.ink,
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              EDIT
+            </button>
+            <button
+              onClick={() => set({ screen: "share", shareKind: "roast", shareId: r.id })}
+              className="pressS"
+              style={{
+                height: 40,
+                padding: "0 14px",
+                borderRadius: 12,
+                border: `1px solid ${C.olive}`,
+                background: C.olive,
+                color: C.cream,
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              SHARE
+            </button>
+          </div>
         }
       />
 
@@ -516,7 +560,7 @@ export function RoastDetail() {
       {/* flavor wheel */}
       {hasFlavor ? (
         <div style={{ ...S.card, marginTop: 12 }}>
-          <div style={S.sectionLabel}>Flavor wheel</div>
+          <div style={S.sectionLabel}>Flavor wheel{bean?.flavors && Object.keys(bean.flavors).length ? " · bean profile" : ""}</div>
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10 }}>
             <StaticWheel flavors={flavors} />
             <WheelChips flavors={flavors} />
@@ -548,6 +592,47 @@ export function RoastDetail() {
         <div style={{ ...S.card, marginTop: 12 }}>
           <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Notes</div>
           <div style={{ fontSize: 13, lineHeight: 1.5 }}>{r.notes}</div>
+        </div>
+      ) : null}
+
+      {/* what you saw and heard, as it happened */}
+      {shadeObs.length ? (
+        <div style={{ ...S.card, marginTop: 12 }}>
+          <div style={{ ...S.sectionLabel, marginBottom: 8 }}>What you saw &amp; heard</div>
+          {shadeObs.map((o, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                padding: "6px 0",
+                borderBottom: "1px solid rgba(183,175,159,0.35)",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                {o.shade != null ? (
+                  <span
+                    style={{
+                      width: 11,
+                      height: 11,
+                      borderRadius: "50%",
+                      background: SHADES[o.shade].c,
+                      flexShrink: 0,
+                      boxShadow: "inset 0 0 0 1px rgba(36,29,22,0.25)",
+                    }}
+                  />
+                ) : (
+                  <span style={{ width: 11, flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: 13 }}>
+                  {[o.shade != null ? SHADES[o.shade].name : null, o.sound].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted, flexShrink: 0 }}>{fmtSigned(o.t)}</span>
+            </div>
+          ))}
         </div>
       ) : null}
 

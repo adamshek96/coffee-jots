@@ -34,6 +34,7 @@ export const DEFAULT_DEVICE: Device = {
   heatMax: 7,
   fan: "ohl",
   coolDefault: 180,
+  coolWatts: 60,
   note: "air roaster · watt meter clipped on",
 };
 
@@ -114,6 +115,16 @@ export async function loadAll(): Promise<LoadedDB> {
   if (devices.length === 0) {
     await db.devices.put(DEFAULT_DEVICE);
     devices = [DEFAULT_DEVICE];
+  } else {
+    // Backfill cooling watts on devices created before the setting existed,
+    // otherwise tapping Cooling would do nothing on an established journal.
+    // Only for watt meters — a "60°" cooling temperature isn't meaningful.
+    const needsCoolWatts = devices.filter((d) => d.coolWatts == null && d.metric === "watts");
+    if (needsCoolWatts.length) {
+      const patched = needsCoolWatts.map((d) => ({ ...d, coolWatts: 60 }));
+      await db.devices.bulkPut(patched);
+      devices = devices.map((d) => patched.find((p) => p.id === d.id) || d);
+    }
   }
   const roasts = await db.roasts.orderBy("createdAt").reverse().toArray();
   const beans = await db.beans.toArray();
@@ -141,6 +152,10 @@ export async function saveRoasts(rs: Roast[]): Promise<void> {
   await db.roasts.bulkPut(rs);
 }
 
+export async function deleteRoast(id: string): Promise<void> {
+  await db.roasts.delete(id);
+}
+
 export async function replaceRoasts(rs: Roast[]): Promise<void> {
   await db.transaction("rw", db.roasts, async () => {
     await db.roasts.clear();
@@ -150,6 +165,10 @@ export async function replaceRoasts(rs: Roast[]): Promise<void> {
 
 export async function saveBean(b: Bean): Promise<void> {
   await db.beans.put(b);
+}
+
+export async function deleteBean(id: string): Promise<void> {
+  await db.beans.delete(id);
 }
 
 export async function replaceBeans(bs: Bean[]): Promise<void> {

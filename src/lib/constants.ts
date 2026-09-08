@@ -23,6 +23,7 @@ export const PHASE: Record<string, string> = {
   drying: "#E7C15C",
   maillard: "#DE8A3B",
   development: "#C0472B",
+  extended: "#8E3B22",
 };
 
 export const MONO = "'Space Mono', monospace";
@@ -107,20 +108,25 @@ export const KEYS: MilestoneKey[] = [
   "browning",
   "fc",
   "fcEnds",
+  "extend",
   "cooling",
   "drop",
 ];
 
 export const MS: { key: MilestoneKey; label: string; hint: string }[] = [
   { key: "preheat", label: "Preheat", hint: "machine on, warming up" },
-  { key: "charge", label: "Charge", hint: "beans in, clock resets to 0:00" },
+  { key: "charge", label: "Charge", hint: "beans in, roast time starts here" },
   { key: "yellowing", label: "Yellowing", hint: "drying done, straw color" },
   { key: "browning", label: "Browning", hint: "maillard, smells bready" },
   { key: "fc", label: "First Crack", hint: "first snaps" },
   { key: "fcEnds", label: "FC Ends", hint: "cracking slows" },
+  { key: "extend", label: "Extend", hint: "optional — hold and develop further" },
   { key: "cooling", label: "Cooling", hint: "heat off, fan high, coasting" },
-  { key: "drop", label: "Drop", hint: "ends roast, beans to the tray" },
+  { key: "drop", label: "Drop", hint: "ends the roast, stops the clock" },
 ];
+
+/** Milestones that are optional — the roast is complete without them. */
+export const OPTIONAL_MS: MilestoneKey[] = ["preheat", "extend", "cooling"];
 
 // origins offered as ghost stamps in the Passport
 export const GHOST_ORIGINS = ["Costa Rica", "Indonesia", "Yemen", "Rwanda", "Honduras", "Peru", "Panama", "Burundi"];

@@ -11,7 +11,7 @@ function devSummary(d: Device): { k: string; v: string }[] {
     { k: "Tracks", v: m.label + " (" + m.unit + ") over time" },
     { k: "Heat", v: d.heatMax ? "dial 1–" + d.heatMax : "no heat dial" },
     { k: "Fan", v: f ? f.join(" / ") : "none" },
-    { k: "Cooling", v: fmt(d.coolDefault) + " default" },
+    { k: "Cooling", v: fmt(d.coolDefault) + (d.coolWatts != null ? " · " + d.coolWatts + m.unit : "") },
   ];
 }
 

@@ -110,6 +110,22 @@ export function DeviceSetup() {
             +30s
           </button>
         </div>
+
+        <div style={{ ...S.sectionLabel, margin: "16px 0 6px" }}>{metric.label} when cooling</div>
+        <input
+          value={dr.coolWatts == null ? "" : String(dr.coolWatts)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9]/g, "");
+            patch({ coolWatts: raw === "" ? undefined : parseInt(raw, 10) });
+          }}
+          inputMode="numeric"
+          placeholder="e.g. 60 — leave blank to keep the current reading"
+          style={{ ...S.input, fontFamily: MONO, fontSize: 15 }}
+        />
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+          Tapping Cooling during a roast drops the {metric.label.toLowerCase()} straight to this value — the machine
+          isn't putting heat in any more.
+        </div>
       </div>
 
       <button

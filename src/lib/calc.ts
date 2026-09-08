@@ -129,19 +129,28 @@ export function curveFor(r: Roast): CurveGeom | null {
   const spanT = (dropT || 1) - minT || 1;
   const X = (t: number) => 3 + ((t - minT) / spanT) * 94;
   const Y = (w: number) => 8 + (1 - (w - lo) / (hi - lo)) * 84;
-  const kk = KEYS.filter((k) => ev[k]);
   const shadeSegs: CurveGeom["shadeSegs"] = [];
-  kk.forEach((k, i) => {
-    const e = ev[k]!;
-    const n = kk[i + 1] ? ev[kk[i + 1]]! : null;
-    if (e.shade == null) return;
-    const t1 = n ? n.t : dropT;
-    shadeSegs.push({
-      left: X(e.t).toFixed(2),
-      w: (X(t1) - X(e.t)).toFixed(2),
-      c: SHADES[e.shade].c,
+  // Same precedence as the detail view: observation timeline first, then the
+  // per-milestone shades that pre-observation roasts carry.
+  const shadeObs = (r.observations || []).filter((o) => o.shade != null).sort((x, y) => x.t - y.t);
+  if (shadeObs.length) {
+    shadeObs.forEach((o, i) => {
+      const t1 = shadeObs[i + 1] ? shadeObs[i + 1].t : dropT;
+      shadeSegs.push({ left: X(o.t).toFixed(2), w: (X(t1) - X(o.t)).toFixed(2), c: SHADES[o.shade!].c });
     });
-  });
+  } else {
+    const kk = KEYS.filter((k) => ev[k]);
+    kk.forEach((k, i) => {
+      const e = ev[k]!;
+      const n = kk[i + 1] ? ev[kk[i + 1]]! : null;
+      if (e.shade == null) return;
+      shadeSegs.push({
+        left: X(e.t).toFixed(2),
+        w: (X(n ? n.t : dropT) - X(e.t)).toFixed(2),
+        c: SHADES[e.shade].c,
+      });
+    });
+  }
   return {
     path: pts.map((p, i) => (i ? "L" : "M") + X(p.t).toFixed(2) + "," + Y(p.watts).toFixed(2)).join(" "),
     dots: pts.map((p) => ({ x: X(p.t).toFixed(2), y: Y(p.watts).toFixed(2) })),

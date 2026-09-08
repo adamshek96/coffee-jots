@@ -1,6 +1,8 @@
 import type { ComponentType } from "react";
 import type { Screen } from "../store";
 import { Analytics } from "./Analytics";
+import { BeanEdit } from "./BeanEdit";
+import { Beans } from "./Beans";
 import { Devices } from "./Devices";
 import { DeviceSetup } from "./DeviceSetup";
 import { FinishRoast } from "./FinishRoast";
@@ -11,6 +13,7 @@ import { Onboarding } from "./Onboarding";
 import { Passport } from "./Passport";
 import { Profile } from "./Profile";
 import { RoastDetail } from "./RoastDetail";
+import { RoastEdit } from "./RoastEdit";
 import { Share } from "./Share";
 
 /**
@@ -30,4 +33,7 @@ export const SCREENS: Partial<Record<Screen, ComponentType>> = {
   passport: Passport,
   share: Share,
   profile: Profile,
+  beans: Beans,
+  bean: BeanEdit,
+  roastEdit: RoastEdit,
 };

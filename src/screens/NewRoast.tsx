@@ -52,7 +52,7 @@ export function NewRoast() {
           <Chip
             label="New profile"
             on={st.setupMode === "new"}
-            onClick={() => set({ setupMode: "new" })}
+            onClick={() => set({ setupMode: "new", setupBatch: null })}
             style={{ flex: 1, padding: "9px 12px", fontWeight: 600 }}
           />
         </div>
@@ -60,15 +60,49 @@ export function NewRoast() {
           <>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
               {st.beans.map((b) => (
-                <Chip key={b.id} label={b.name} on={st.setupBeanId === b.id} onClick={() => set({ setupBeanId: b.id })} />
+                <Chip
+                  key={b.id}
+                  label={b.name}
+                  on={st.setupBeanId === b.id}
+                  // Switching bean clears any hand-set batch so the number
+                  // re-derives for the bean you actually picked.
+                  onClick={() => set({ setupBeanId: b.id, setupBatch: null })}
+                />
               ))}
               {st.beans.length === 0 ? (
                 <span style={{ fontSize: 13, color: C.muted }}>No saved beans yet — switch to New profile.</span>
               ) : null}
             </div>
             {picked ? (
-              <div style={{ fontSize: 12, color: C.muted, fontFamily: MONO, marginTop: 12 }}>
-                {(picked.origin || "—") + " · " + (picked.process || "—")}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  marginTop: 12,
+                }}
+              >
+                <span style={{ fontSize: 12, color: C.muted, fontFamily: MONO, minWidth: 0 }}>
+                  {[picked.origin, picked.region, picked.process].filter(Boolean).join(" · ") || "no details yet"}
+                </span>
+                <button
+                  onClick={() => set({ screen: "bean", beanDraft: { ...picked, flavors: { ...(picked.flavors || {}) } } })}
+                  className="pressS"
+                  style={{
+                    flexShrink: 0,
+                    border: `1px solid ${C.hair}`,
+                    background: C.field,
+                    borderRadius: 999,
+                    padding: "5px 12px",
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    cursor: "pointer",
+                    color: C.olive,
+                  }}
+                >
+                  edit bean →
+                </button>
               </div>
             ) : null}
             {picked?.desc ? (
@@ -242,6 +276,24 @@ export function NewRoast() {
           style={{ ...S.input, fontFamily: MONO, fontSize: 16 }}
         />
         <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>Compared to roasted weight for weight-loss %.</div>
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <button
+          onClick={() => set({ screen: "beans" })}
+          style={{
+            border: "none",
+            background: "none",
+            color: C.muted,
+            fontFamily: MONO,
+            fontSize: 11,
+            textDecoration: "underline",
+            cursor: "pointer",
+            padding: 6,
+          }}
+        >
+          manage bean profiles
+        </button>
       </div>
 
       <button

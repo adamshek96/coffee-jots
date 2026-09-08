@@ -1,10 +1,11 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { CSSProperties } from "react";
 import { S } from "../components/ui";
-import { fmt, ramp } from "../lib/calc";
+import { fmt, fmtSigned, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
 import { keepAwake } from "../lib/wakeLock";
 import { useStore } from "../store";
+import type { MilestoneKey } from "../types";
 
 const screw = (deg: number): CSSProperties => ({
   position: "absolute",
@@ -27,52 +28,53 @@ const machineBtn: CSSProperties = {
 
 export function LiveRoast() {
   const store = useStore();
-  const { st, set, tap, patchA, setObservation, discardActive } = store;
+  const { st, set, tap, patchA, addObservation, undoObservation, discardActive } = store;
   const a = st.active!;
   const [, tick] = useReducer((n: number) => n + 1, 0);
+  const [typingWatts, setTypingWatts] = useState(false);
+  const [wattDraft, setWattDraft] = useState("");
 
-  // Redraw the clock 4×/s while roasting or cooling; elapsed time is always
-  // recomputed from startedAt so backgrounding or reloading never loses it.
+  const running = a.status === "preheating" || a.status === "roasting" || a.status === "cooling";
+
   useEffect(() => {
     const iv = setInterval(() => {
-      if (a.status === "preheating" || a.status === "roasting" || a.status === "cooling") tick();
+      if (running) tick();
     }, 250);
     return () => clearInterval(iv);
-  }, [a.status]);
+  }, [running]);
 
-  // Keep the screen awake for the whole live roast.
   useEffect(() => keepAwake(), []);
 
   const now = Date.now();
-  const elapsed = a.startedAt ? (now - a.startedAt) / 1000 : 0;
-  const preheating = a.status === "preheating";
-  // Live preheat time; once charged it's frozen at the recorded duration.
-  const preheatElapsed = a.preheatAt
-    ? a.startedAt
-      ? (a.startedAt - a.preheatAt) / 1000
-      : (now - a.preheatAt) / 1000
-    : 0;
-  const cooling = a.status === "cooling";
-  const coolLeft = cooling && a.coolStartedAt ? Math.max(0, a.coolDuration - (now - a.coolStartedAt) / 1000) : 0;
   const ev = a.events;
   const D = a.device;
+  const dropped = a.status === "done";
+  const endAt = a.droppedAt || now;
+
+  // Roast time is charge-relative (what FC and development % mean).
+  const roastT = a.startedAt ? (endAt - a.startedAt) / 1000 : 0;
+  // The clock on screen runs continuously from the moment the machine went on.
+  const anchor = a.preheatAt || a.startedAt;
+  const totalT = anchor ? (endAt - anchor) / 1000 : 0;
+
+  const cooling = a.status === "cooling";
+  const coolLeft = cooling && a.coolStartedAt ? Math.max(0, a.coolDuration - (now - a.coolStartedAt) / 1000) : 0;
 
   let phase: string | null = null;
-  if (a.startedAt && !cooling) phase = ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
+  if (a.startedAt && !dropped) {
+    phase = ev.extend ? "extended" : ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
+  }
 
   const G = st.ghostOn && a.ghost ? a.ghost : null;
   const delta = (s: number) => (s >= 0 ? "+" : "−") + fmt(Math.abs(s));
   let paceText = "";
   let paceColor = "#5C5346";
-  if (G) {
-    // Preheat is excluded: its target time is negative, so pacing against it
-    // would always read as absurdly "late".
+  if (G && !dropped) {
     const nk = MS.find((m) => m.key !== "preheat" && !ev[m.key] && G.events[m.key]);
-    if (a.status === "idle" || preheating)
-      paceText = "Pacing against batch " + G.batch + (G.rating ? " · " + "★".repeat(G.rating) : "");
+    if (!a.startedAt) paceText = "Pacing against batch " + G.batch + (G.rating ? " · " + "★".repeat(G.rating) : "");
     else if (nk) {
       const target = G.events[nk.key]!.t;
-      const d = elapsed - target;
+      const d = roastT - target;
       paceText =
         nk.label.toUpperCase() +
         " target " +
@@ -83,24 +85,30 @@ export function LiveRoast() {
     } else paceText = "Past batch " + G.batch + "'s last marker";
   }
 
-  // First milestone that's neither recorded nor locked — so skipping preheat
-  // still leaves Charge as the pulsing next step.
-  const nextKey = MS.find((m) => {
-    if (ev[m.key]) return false;
-    if (m.key === "preheat") return !a.startedAt;
-    if (m.key === "charge") return true;
-    return !!a.startedAt;
-  })?.key;
+  const isLocked = (k: MilestoneKey): boolean => {
+    if (dropped) return true;
+    if (k === "preheat") return !!a.startedAt;
+    if (k === "charge") return false;
+    if (k === "extend") return !ev.fcEnds;
+    return !a.startedAt;
+  };
+  const nextKey = MS.find((m) => !ev[m.key] && !isLocked(m.key))?.key;
   const nx = MS.find((m) => m.key === nextKey);
+
   const RAMP = ramp(D.heatMax || 1);
   const SP = D.steps || [10, 5];
+  const obs = a.observations || [];
+  const lastObs = obs[obs.length - 1];
 
-  const ok = st.obsKey;
-  const oev = ok ? ev[ok] : null;
-  const om = ok ? MS.find((m) => m.key === ok) : null;
+  const commitWatts = () => {
+    const v = parseInt(wattDraft.replace(/[^0-9]/g, ""), 10);
+    if (!isNaN(v)) patchA({ watts: Math.max(0, v) });
+    setTypingWatts(false);
+  };
 
   const readout = C.readout;
   const glow = readout + "80";
+  const clockLabel = dropped ? "Done" : cooling ? "Cooling" : a.status === "preheating" ? "Preheat" : a.startedAt ? "Total" : "Ready";
 
   return (
     <div>
@@ -143,8 +151,7 @@ export function LiveRoast() {
               " · " +
               a.greenWeight +
               " g green" +
-              (a.process ? " · " + a.process.toLowerCase() : "") +
-              (a.startedAt && a.preheatAt ? " · preheat " + fmt(preheatElapsed) : "")}
+              (a.process ? " · " + a.process.toLowerCase() : "")}
           </div>
         </div>
       </div>
@@ -168,7 +175,6 @@ export function LiveRoast() {
           <div style={{ ...screw(80), bottom: 8, left: 8 }} />
           <div style={{ ...screw(10), bottom: 8, right: 8 }} />
 
-          {/* dark readout */}
           <div
             style={{
               background: C.readoutBg,
@@ -191,7 +197,7 @@ export function LiveRoast() {
                   textShadow: `0 0 12px ${glow}`,
                 }}
               >
-                {cooling ? fmt(coolLeft) : preheating ? fmt(preheatElapsed) : fmt(elapsed)}
+                {fmt(totalT)}
               </div>
               <div
                 style={{
@@ -200,34 +206,91 @@ export function LiveRoast() {
                   color: "#5F6B74",
                   textTransform: "uppercase",
                   marginTop: 6,
-                  animation: cooling || preheating ? "cjBlink 1.4s infinite" : "none",
+                  animation: a.status === "preheating" || cooling ? "cjBlink 1.4s infinite" : "none",
                 }}
               >
-                {cooling ? "Cooling" : preheating ? "Preheat" : a.status === "idle" ? "Ready" : "Roasting"}
+                {clockLabel}
               </div>
             </div>
+            {/* watts — tap the number to type an exact reading */}
             <div style={{ flex: 1, textAlign: "center", paddingLeft: 8 }}>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                  fontSize: 36,
-                  lineHeight: 1,
-                  color: readout,
-                  textShadow: `0 0 12px ${glow}`,
-                }}
-              >
-                {a.watts}
-              </div>
+              {typingWatts ? (
+                <input
+                  autoFocus
+                  value={wattDraft}
+                  onChange={(e) => setWattDraft(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))}
+                  onBlur={commitWatts}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitWatts();
+                    if (e.key === "Escape") setTypingWatts(false);
+                  }}
+                  inputMode="numeric"
+                  style={{
+                    width: "100%",
+                    background: "rgba(143,180,214,0.12)",
+                    border: `1px solid ${readout}`,
+                    borderRadius: 8,
+                    fontFamily: MONO,
+                    fontWeight: 700,
+                    fontSize: 32,
+                    lineHeight: 1,
+                    textAlign: "center",
+                    color: readout,
+                    padding: "2px 0",
+                    outline: "none",
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => {
+                    setWattDraft(String(a.watts));
+                    setTypingWatts(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    fontFamily: MONO,
+                    fontWeight: 700,
+                    fontSize: 36,
+                    lineHeight: 1,
+                    color: readout,
+                    textShadow: `0 0 12px ${glow}`,
+                    width: "100%",
+                  }}
+                >
+                  {a.watts}
+                </button>
+              )}
               <div
                 style={{ fontSize: 9, letterSpacing: "0.24em", color: "#5F6B74", textTransform: "uppercase", marginTop: 6 }}
               >
-                {D.label} {D.unit}
+                {typingWatts ? "enter to set" : D.label + " " + D.unit + " ·  tap"}
               </div>
             </div>
           </div>
 
-          {/* ghost pace */}
+          {/* roast time (charge-relative) — what FC and development % refer to */}
+          {a.startedAt ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                margin: "8px 2px 0",
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: "0.06em",
+                color: "#5C5346",
+              }}
+            >
+              <span>ROAST {fmt(roastT)}</span>
+              {a.preheatSec ? <span>PREHEAT {fmt(a.preheatSec)}</span> : null}
+            </div>
+          ) : null}
+
           {paceText ? (
             <div
               style={{
@@ -265,9 +328,8 @@ export function LiveRoast() {
             </div>
           ) : null}
 
-          {/* phase segments */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, margin: "12px 2px 0" }}>
-            {(["drying", "maillard", "development"] as const).map((p) => (
+            {(["drying", "maillard", "development", "extended"] as const).map((p) => (
               <div
                 key={p}
                 style={{ flex: 1, height: 5, borderRadius: 3, background: PHASE[p], opacity: phase === p ? 1 : 0.22 }}
@@ -283,11 +345,11 @@ export function LiveRoast() {
                 whiteSpace: "nowrap",
               }}
             >
-              {cooling ? "COOLING" : preheating ? "PREHEAT" : phase ? phase.toUpperCase() : "STANDBY"}
+              {dropped ? "DONE" : cooling ? "COOLING" : a.status === "preheating" ? "PREHEAT" : phase ? phase.toUpperCase() : "STANDBY"}
             </div>
           </div>
 
-          {!cooling ? (
+          {!dropped ? (
             <>
               {D.heatMax > 0 ? (
                 <>
@@ -369,9 +431,7 @@ export function LiveRoast() {
                           fontSize: 12,
                           letterSpacing: "0.1em",
                           boxShadow: "0 2px 0 rgba(122,113,95,0.45)",
-                          ...(a.fan === f
-                            ? { background: C.olive, color: C.cream, border: "1px solid #41400F" }
-                            : {}),
+                          ...(a.fan === f ? { background: C.olive, color: C.cream, border: "1px solid #41400F" } : {}),
                         }}
                       >
                         {f}
@@ -405,150 +465,123 @@ export function LiveRoast() {
                   </button>
                 ))}
               </div>
+
+              {/* cooling countdown appears only once Cooling has been tapped */}
+              {cooling ? (
+                <>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.16em",
+                      color: "#5C5346",
+                      fontWeight: 700,
+                      margin: "16px 2px 7px",
+                    }}
+                  >
+                    Cooling timer · {fmt(coolLeft)} left
+                  </div>
+                  <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                    <button
+                      onClick={() => patchA({ coolDuration: Math.max(30, a.coolDuration - 30) })}
+                      className="pressS"
+                      style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
+                    >
+                      −30s
+                    </button>
+                    <div style={{ flex: 1.2, textAlign: "center", fontFamily: MONO, fontWeight: 700, fontSize: 20, color: "#3A342B" }}>
+                      {fmt(a.coolDuration)}
+                    </div>
+                    <button
+                      onClick={() => patchA({ coolDuration: a.coolDuration + 30 })}
+                      className="pressS"
+                      style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
+                    >
+                      +30s
+                    </button>
+                  </div>
+                </>
+              ) : null}
             </>
-          ) : (
-            <>
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.16em",
-                  color: "#5C5346",
-                  fontWeight: 700,
-                  margin: "16px 2px 7px",
-                }}
-              >
-                Cooling timer
-              </div>
-              <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
-                <button
-                  onClick={() => patchA({ coolDuration: Math.max(30, a.coolDuration - 30) })}
-                  className="pressS"
-                  style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
-                >
-                  −30s
-                </button>
-                <div style={{ flex: 1.2, textAlign: "center", fontFamily: MONO, fontWeight: 700, fontSize: 20, color: "#3A342B" }}>
-                  {fmt(a.coolDuration)}
-                </div>
-                <button
-                  onClick={() => patchA({ coolDuration: a.coolDuration + 30 })}
-                  className="pressS"
-                  style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
-                >
-                  +30s
-                </button>
-              </div>
-              <div style={{ fontSize: 11, color: "#5C5346", margin: "12px 2px 2px", lineHeight: 1.5 }}>
-                Beans are in the cooling tray. Stir until they're room-cool, then finish below.
-              </div>
-            </>
-          )}
+          ) : null}
         </div>
 
         {/* milestone rail */}
-        {!cooling ? (
-          <div style={{ width: 112, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7 }}>
-            {MS.map((m) => {
-              const e = ev[m.key];
-              // Preheat and charge are both available from the start (preheat is
-              // optional); everything after charge needs the roast running.
-              const locked =
-                m.key === "preheat" ? !!a.startedAt : m.key === "charge" ? false : !a.startedAt;
-              const isNext = m.key === nextKey && !locked;
-              const gt = G && G.events[m.key] ? G.events[m.key]!.t : null;
-              let sub = "";
-              if (e && gt != null && m.key !== "charge") sub = delta(e.t - gt);
-              else if (!e && gt != null && m.key !== "charge") sub = "@" + fmt(gt);
-              const shade = e && e.shade != null ? SHADES[e.shade].c : null;
-              return (
-                <button
-                  key={m.key}
-                  onClick={() => tap(m.key)}
-                  disabled={locked || !!e}
-                  className="pressS"
+        <div style={{ width: 112, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7 }}>
+          {MS.map((m) => {
+            const e = ev[m.key];
+            const locked = isLocked(m.key);
+            const isNext = m.key === nextKey;
+            const gt = G && G.events[m.key] ? G.events[m.key]!.t : null;
+            let sub = "";
+            if (e && gt != null && m.key !== "charge" && m.key !== "preheat") sub = delta(e.t - gt);
+            else if (!e && gt != null && m.key !== "charge" && m.key !== "preheat") sub = "@" + fmt(gt);
+            return (
+              <button
+                key={m.key}
+                onClick={() => tap(m.key)}
+                disabled={locked || !!e}
+                className="pressS"
+                style={{
+                  flex: 1,
+                  width: "100%",
+                  minHeight: 48,
+                  textAlign: "left",
+                  borderRadius: 12,
+                  border: `1.5px solid ${e ? "#B7C08C" : isNext ? C.rust : C.hair}`,
+                  background: e ? "#E3E7D0" : C.field,
+                  padding: "7px 9px",
+                  cursor: locked || e ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: locked ? 0.4 : 1,
+                  animation: isNext ? "cjPulse 1.8s infinite" : "none",
+                  display: "block",
+                }}
+              >
+                <span
                   style={{
-                    flex: 1,
-                    width: "100%",
-                    minHeight: 52,
-                    textAlign: "left",
-                    borderRadius: 12,
-                    border: `1.5px solid ${e ? "#B7C08C" : isNext ? C.rust : C.hair}`,
-                    background: e ? "#E3E7D0" : C.field,
-                    padding: "7px 9px",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    opacity: locked ? 0.45 : 1,
-                    animation: isNext ? "cjPulse 1.8s infinite" : "none",
                     display: "block",
+                    fontSize: 9,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.11em",
+                    color: C.muted,
+                    fontWeight: 700,
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    {shade ? (
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: shade,
-                          flexShrink: 0,
-                          boxShadow: "inset 0 0 0 1px rgba(36,29,22,0.25)",
-                        }}
-                      />
-                    ) : null}
-                    <span
-                      style={{
-                        fontSize: 9,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.11em",
-                        color: C.muted,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {m.label}
-                    </span>
+                  {m.label}
+                </span>
+                <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 4, marginTop: 2 }}>
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: e ? C.oliveDeep : isNext ? C.rust : C.muted,
+                    }}
+                  >
+                    {e ? fmtSigned(e.t) : isNext ? "TAP" : "—"}
                   </span>
-                  <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 4, marginTop: 2 }}>
+                  {sub ? (
                     <span
                       style={{
                         fontFamily: MONO,
-                        fontWeight: 700,
-                        fontSize: 14,
-                        color: e ? C.oliveDeep : isNext ? C.rust : C.muted,
+                        fontSize: 9,
+                        color: e && gt != null ? (e.t - gt > 10 ? C.rust : C.olive) : C.muted,
                       }}
                     >
-                      {m.key === "preheat" && e
-                        ? a.startedAt
-                          ? "−" + fmt(preheatElapsed)
-                          : fmt(preheatElapsed)
-                        : e
-                          ? fmt(e.t)
-                          : isNext
-                            ? "TAP"
-                            : "—"}
+                      {sub}
                     </span>
-                    {sub ? (
-                      <span
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 9,
-                          color: e && gt != null ? (e.t - gt > 10 ? C.rust : C.olive) : C.muted,
-                        }}
-                      >
-                        {sub}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* observation card */}
-      {oev && om ? (
-        <div style={{ background: C.card, border: `1.5px solid ${C.rust}`, borderRadius: 16, padding: 14, marginTop: 12 }}>
+      {/* always-on observations — log colour and sound whenever you see/hear it */}
+      {a.startedAt && !dropped ? (
+        <div style={{ ...S.card, border: `1.5px solid ${C.rust}`, padding: 14, marginTop: 12 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
             <span
               style={{
@@ -560,69 +593,57 @@ export function LiveRoast() {
                 textTransform: "uppercase",
               }}
             >
-              {om.label} at {fmt(oev.t)}
+              What you see &amp; hear
             </span>
-            <button
-              onClick={() => set({ obsKey: null })}
-              style={{
-                border: "none",
-                background: "none",
-                color: C.muted,
-                fontSize: 11,
-                textDecoration: "underline",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                padding: 2,
-                flexShrink: 0,
-              }}
-            >
-              {oev.shade != null || oev.sound ? "Logged — close" : "Skip"}
-            </button>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: C.muted }}>
+              {obs.length ? obs.length + " logged" : "tap any time"}
+            </span>
           </div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>What do you see?</div>
-          <div style={{ display: "flex", gap: 7, marginTop: 7 }}>
-            {SHADES.map((s, i) => (
-              <button
-                key={s.name}
-                onClick={() => setObservation(ok!, { shade: i })}
-                className="pressS"
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 5,
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                <span
+
+          <div style={{ display: "flex", gap: 7, marginTop: 9 }}>
+            {SHADES.map((s, i) => {
+              const on = lastObs?.shade === i;
+              return (
+                <button
+                  key={s.name}
+                  onClick={() => addObservation({ shade: i })}
+                  className="pressS"
                   style={{
-                    width: "100%",
-                    height: 34,
-                    borderRadius: 9,
-                    background: s.c,
-                    boxShadow: `inset 0 0 0 ${oev.shade === i ? 3 : 1}px ${
-                      oev.shade === i ? C.ink : "rgba(36,29,22,0.2)"
-                    }`,
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 5,
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    padding: 0,
                   }}
-                />
-                <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.06em", color: C.muted, textTransform: "uppercase" }}>
-                  {s.name}
-                </span>
-              </button>
-            ))}
+                >
+                  <span
+                    style={{
+                      width: "100%",
+                      height: 34,
+                      borderRadius: 9,
+                      background: s.c,
+                      boxShadow: `inset 0 0 0 ${on ? 3 : 1}px ${on ? C.ink : "rgba(36,29,22,0.2)"}`,
+                    }}
+                  />
+                  <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.06em", color: C.muted, textTransform: "uppercase" }}>
+                    {s.name}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 12 }}>What do you hear?</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
             {SOUNDS.map((snd) => {
-              const on = oev.sound === snd;
+              const on = lastObs?.sound === snd;
               return (
                 <button
                   key={snd}
-                  onClick={() => setObservation(ok!, { sound: snd })}
+                  onClick={() => addObservation({ sound: snd })}
                   className="pressS"
                   style={{
                     padding: "8px 13px",
@@ -640,29 +661,61 @@ export function LiveRoast() {
               );
             })}
           </div>
+
+          {obs.length ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, color: C.muted, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {obs
+                  .slice(-3)
+                  .map(
+                    (o) =>
+                      fmtSigned(o.t) +
+                      " " +
+                      [o.shade != null ? SHADES[o.shade].name : null, o.sound].filter(Boolean).join("/"),
+                  )
+                  .join("  ·  ")}
+              </span>
+              <button
+                onClick={undoObservation}
+                style={{
+                  flexShrink: 0,
+                  border: "none",
+                  background: "none",
+                  color: C.muted,
+                  fontSize: 11,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  padding: 2,
+                }}
+              >
+                undo
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {!cooling ? (
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 12, textAlign: "center" }}>
-          {a.status === "idle"
-            ? "Set your heat and fan, then tap PREHEAT when you switch the machine on — or go straight to CHARGE."
-            : preheating
-              ? "Warming up. Tap CHARGE when the beans go in — the clock restarts at 0:00 there."
-              : nx
-                ? "Next — " + nx.label + ": " + nx.hint
-                : ""}
-        </div>
-      ) : (
+      {dropped ? (
         <button
           onClick={() =>
-            set({ screen: "post", postWeight: "", postLevel: "", postEven: 0, postNotes: "", postFlavors: {}, postRating: 0 })
+            set({ screen: "post", postWeight: "", postLevel: "", postEven: 0, postNotes: "", postRating: 0 })
           }
           className="pressY"
           style={{ ...S.primaryBtn, background: C.rust, marginTop: 14 }}
         >
-          Beans out — finish roast
+          Record the roast →
         </button>
+      ) : (
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 12, textAlign: "center" }}>
+          {!a.startedAt && a.status !== "preheating"
+            ? "Set your heat and fan, then tap PREHEAT when you switch the machine on — or go straight to CHARGE."
+            : a.status === "preheating"
+              ? "Warming up. Tap CHARGE when the beans go in."
+              : nx
+                ? "Next — " + nx.label + ": " + nx.hint
+                : ""}
+        </div>
       )}
 
       <div style={{ textAlign: "center", marginTop: 18 }}>

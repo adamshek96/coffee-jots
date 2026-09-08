@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import {
   DEFAULT_SETTINGS,
+  deleteBean as dbDeleteBean,
+  deleteRoast as dbDeleteRoast,
   deleteDevice as dbDeleteDevice,
   loadAll,
   replaceBeans,
@@ -11,6 +13,7 @@ import {
   saveBean,
   saveDevice,
   saveRoast,
+  saveRoasts,
   saveSettings,
 } from "./db";
 import { FANS, METRICS, MS } from "./lib/constants";
@@ -40,7 +43,10 @@ export type Screen =
   | "devices"
   | "device"
   | "share"
-  | "profile";
+  | "profile"
+  | "beans"
+  | "bean"
+  | "roastEdit";
 
 export interface AppState {
   loaded: boolean;
@@ -54,7 +60,8 @@ export interface AppState {
   settings: Settings;
   active: ActiveRoast | null;
   draft: Device | null;
-  obsKey: MilestoneKey | null;
+  beanDraft: Bean | null;
+  roastDraft: Roast | null;
   ghostOn: boolean;
   compareId: string | null;
   shareKind: "roast" | "passport" | null;
@@ -78,7 +85,6 @@ export interface AppState {
   postLevel: string;
   postEven: number;
   postNotes: string;
-  postFlavors: Record<string, number>;
   postRating: number;
 }
 
@@ -102,7 +108,8 @@ const initialState: AppState = {
   settings: DEFAULT_SETTINGS,
   active: null,
   draft: null,
-  obsKey: null,
+  beanDraft: null,
+  roastDraft: null,
   ghostOn: true,
   compareId: null,
   shareKind: null,
@@ -123,7 +130,6 @@ const initialState: AppState = {
   postLevel: "",
   postEven: 0,
   postNotes: "",
-  postFlavors: {},
   postRating: 0,
 };
 
@@ -136,12 +142,17 @@ export interface Store {
   nextBatch: (beanName: string) => number;
   tap: (key: MilestoneKey) => void;
   patchA: (p: Partial<ActiveRoast>) => void;
-  setObservation: (key: MilestoneKey, patch: { shade?: number; sound?: string }) => void;
+  addObservation: (patch: { shade?: number; sound?: string }) => void;
+  undoObservation: () => void;
   beginRoast: () => void;
   savePost: () => void;
   discardActive: () => void;
   saveDraft: () => void;
   deleteDraft: () => void;
+  saveBeanDraft: () => void;
+  deleteBeanDraft: () => void;
+  saveRoastDraft: () => void;
+  deleteRoastDraft: () => void;
   useDevice: (id: string) => void;
   toggleWishlist: (origin: string) => void;
   togglePublish: (roastId: string) => void;
@@ -248,6 +259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       heatMax: d.heatMax || 0,
       fanOpts: FANS[d.fan] || null,
       coolDefault: d.coolDefault,
+      coolWatts: d.coolWatts ?? null,
     };
   }, []);
 
@@ -304,36 +316,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const t = (Date.now() - a.startedAt) / 1000;
         next.events[key] = { t, dial: a.dial, fan: a.fan, watts: a.watts };
         if (key === "cooling") {
+          // Heat off, fan up, and the metric falls to the device's cooling
+          // value — the machine isn't putting energy in any more.
           const D = a.device;
           if (D.heatMax > 0) next.dial = 1;
           if (D.fanOpts) next.fan = D.fanOpts[D.fanOpts.length - 1];
-        }
-        if (key === "drop") {
+          if (D.coolWatts != null) next.watts = D.coolWatts;
           next.status = "cooling";
           next.coolStartedAt = Date.now();
         }
+        if (key === "drop") {
+          // Drop ends the roast outright: the clock stops here.
+          next.status = "done";
+          next.droppedAt = Date.now();
+        }
       }
       vibrate();
-      // No bean colour or sound to log at preheat — the machine is still empty.
-      set({ active: next, obsKey: key === "preheat" ? null : key });
-      persistActive(next);
-    },
-    [set, persistActive],
-  );
-
-  const setObservation = useCallback(
-    (key: MilestoneKey, patch: { shade?: number; sound?: string }) => {
-      const a = ref.current.active;
-      if (!a || !a.events[key]) return;
-      const next: ActiveRoast = {
-        ...a,
-        events: { ...a.events, [key]: { ...a.events[key]!, ...patch } },
-      };
       set({ active: next });
       persistActive(next);
     },
     [set, persistActive],
   );
+
+  /**
+   * Log what you see/hear at the current moment. Independent of milestones —
+   * you watch the beans continuously, so this can be tapped any time.
+   * Consecutive readings of the same kind within a few seconds are merged so a
+   * quick colour-then-sound tap reads as one observation.
+   */
+  const addObservation = useCallback(
+    (patch: { shade?: number; sound?: string }) => {
+      const a = ref.current.active;
+      if (!a) return;
+      const t = a.startedAt
+        ? (Date.now() - a.startedAt) / 1000
+        : a.preheatAt
+          ? -((Date.now() - a.preheatAt) / 1000)
+          : 0;
+      const obs = [...(a.observations || [])];
+      const last = obs[obs.length - 1];
+      if (last && Math.abs(t - last.t) < 5) obs[obs.length - 1] = { ...last, ...patch, t: last.t };
+      else obs.push({ t, ...patch });
+      const next: ActiveRoast = { ...a, observations: obs };
+      vibrate(15);
+      set({ active: next });
+      persistActive(next);
+    },
+    [set, persistActive],
+  );
+
+  const undoObservation = useCallback(() => {
+    const a = ref.current.active;
+    if (!a || !a.observations?.length) return;
+    const next: ActiveRoast = { ...a, observations: a.observations.slice(0, -1) };
+    set({ active: next });
+    persistActive(next);
+  }, [set, persistActive]);
 
   const beginRoast = useCallback(() => {
     const s = ref.current;
@@ -385,8 +423,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       events: {},
       coolStartedAt: null,
       coolDuration: D.coolDefault,
+      observations: [],
+      droppedAt: null,
     };
-    set({ obsKey: null, beans, screen: "live", active });
+    set({ beans, screen: "live", active });
     persistActive(active);
   }, [dev, devSnap, nextBatch, set, persistActive, touch]);
 
@@ -416,9 +456,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       evenness: s.postEven,
       rating: s.postRating,
       notes: s.postNotes,
-      flavors: { ...s.postFlavors },
       durationSec: total,
       preheatSec: a.preheatSec,
+      observations: a.observations,
       finishedAt: Date.now(),
     };
     set({ roasts: [rec, ...s.roasts], active: null, detailId: rec.id, compareId: null, screen: "detail" });
@@ -427,7 +467,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [set, persistActive, touch]);
 
   const discardActive = useCallback(() => {
-    set({ active: null, obsKey: null, screen: "home" });
+    set({ active: null, screen: "home" });
     persistActive(null);
   }, [set, persistActive]);
 
@@ -464,6 +504,83 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void dbDeleteDevice(dr.id).then(touch);
     persistSettings(settings);
   }, [set, persistSettings, touch]);
+
+  /** Save the bean being edited. Renames propagate to that bean's roasts. */
+  const saveBeanDraft = useCallback(() => {
+    const s = ref.current;
+    const dr = s.beanDraft;
+    if (!dr || !dr.name.trim()) return;
+    const b: Bean = { ...dr, name: dr.name.trim(), id: dr.id || "b" + Date.now() };
+    const existed = s.beans.some((x) => x.id === b.id);
+    const beans = existed ? s.beans.map((x) => (x.id === b.id ? b : x)) : [b, ...s.beans];
+
+    // Keep already-logged roasts consistent with the edited profile.
+    const prev = s.beans.find((x) => x.id === b.id);
+    const touched: Roast[] = [];
+    const roasts = s.roasts.map((r) => {
+      const isMine = r.beanId === b.id || (!r.beanId && prev && r.beanName === prev.name);
+      if (!isMine) return r;
+      const upd = { ...r, beanId: b.id, beanName: b.name, origin: b.origin, process: b.process, beanDesc: b.desc };
+      touched.push(upd);
+      return upd;
+    });
+
+    set({ beans, roasts, beanDraft: null, screen: "beans" });
+    void saveBean(b).then(touch);
+    if (touched.length) void saveRoasts(touched);
+    flash(existed ? "Bean updated" : "Bean saved");
+  }, [set, touch, flash]);
+
+  const deleteBeanDraft = useCallback(() => {
+    const s = ref.current;
+    const dr = s.beanDraft;
+    if (!dr || !dr.id) return;
+    const beans = s.beans.filter((x) => x.id !== dr.id);
+    // Roasts are the journal — deleting a bean profile must never delete them.
+    set({
+      beans,
+      beanDraft: null,
+  roastDraft: null,
+      screen: "beans",
+      setupBeanId: s.setupBeanId === dr.id ? null : s.setupBeanId,
+    });
+    void dbDeleteBean(dr.id).then(touch);
+    flash("Bean profile deleted — its roasts are kept");
+  }, [set, touch, flash]);
+
+  /** Save edits to a roast already in the journal. */
+  const saveRoastDraft = useCallback(() => {
+    const s = ref.current;
+    const dr = s.roastDraft;
+    if (!dr) return;
+    const roasts = s.roasts.map((r) => (r.id === dr.id ? dr : r));
+    set({ roasts, roastDraft: null, detailId: dr.id, screen: "detail" });
+    void saveRoast(dr).then(touch);
+    flash("Roast updated");
+  }, [set, touch, flash]);
+
+  const deleteRoastDraft = useCallback(() => {
+    const s = ref.current;
+    const dr = s.roastDraft;
+    if (!dr) return;
+    const roasts = s.roasts.filter((r) => r.id !== dr.id);
+    const published = { ...s.settings.published };
+    delete published[dr.id];
+    const settings = { ...s.settings, published };
+    // Clear anything still pointing at the deleted roast.
+    set({
+      roasts,
+      settings,
+      roastDraft: null,
+      detailId: null,
+      compareId: s.compareId === dr.id ? null : s.compareId,
+      shareId: s.shareId === dr.id ? null : s.shareId,
+      screen: "home",
+    });
+    void dbDeleteRoast(dr.id).then(touch);
+    persistSettings(settings);
+    flash("Roast deleted");
+  }, [set, touch, flash, persistSettings]);
 
   const useDevice = useCallback(
     (id: string) => {
@@ -709,12 +826,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       nextBatch,
       tap,
       patchA,
-      setObservation,
+      addObservation,
+      undoObservation,
       beginRoast,
       savePost,
       discardActive,
       saveDraft,
       deleteDraft,
+      saveBeanDraft,
+      deleteBeanDraft,
+      saveRoastDraft,
+      deleteRoastDraft,
       useDevice,
       toggleWishlist,
       togglePublish,
@@ -741,12 +863,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       nextBatch,
       tap,
       patchA,
-      setObservation,
+      addObservation,
+      undoObservation,
       beginRoast,
       savePost,
       discardActive,
       saveDraft,
       deleteDraft,
+      saveBeanDraft,
+      deleteBeanDraft,
+      saveRoastDraft,
+      deleteRoastDraft,
       useDevice,
       toggleWishlist,
       togglePublish,
