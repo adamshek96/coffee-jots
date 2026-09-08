@@ -17,6 +17,7 @@ export const C = {
   readout: "#8FB4D6",
   compare: "#3B4A6B",
   oliveDeep: "#43420F",
+  clayBrew: "#7A4C31",
 };
 
 export const PHASE: Record<string, string> = {

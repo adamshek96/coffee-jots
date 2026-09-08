@@ -1,4 +1,5 @@
 import { EditableWheel } from "../components/FlavorWheel";
+import { BeanBag, levelColor } from "../components/objects";
 import { Chip, DangerAction, S, ScreenHeader } from "../components/ui";
 import { C, PROCESSES } from "../lib/constants";
 import { useStore } from "../store";
@@ -12,7 +13,16 @@ export function BeanEdit() {
   const patch = (p: Partial<Bean>) => set({ beanDraft: { ...dr, ...p } });
   const flavors = dr.flavors || {};
   const canSave = dr.name.trim().length > 0;
-  const roastCount = dr.id ? st.roasts.filter((r) => r.beanId === dr.id || r.beanName === dr.name).length : 0;
+  const mine = dr.id ? st.roasts.filter((r) => r.beanId === dr.id || r.beanName === dr.name) : [];
+  const roastCount = mine.length;
+  // Bag label takes the colour of the level this bean is usually roasted to.
+  const commonLevel = (() => {
+    const tally: Record<string, number> = {};
+    mine.forEach((r) => {
+      if (r.roastLevel) tally[r.roastLevel] = (tally[r.roastLevel] || 0) + 1;
+    });
+    return Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0];
+  })();
 
 
   return (
@@ -21,6 +31,10 @@ export function BeanEdit() {
         title={dr.id ? "Edit bean" : "New bean"}
         onBack={() => set({ beanDraft: null, screen: "beans" })}
       />
+
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <BeanBag size={120} color={levelColor(commonLevel)} label={dr.name || "this bean"} />
+      </div>
 
       <div style={S.card}>
         <label style={S.fieldLabel}>Name</label>

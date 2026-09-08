@@ -1,6 +1,7 @@
 import { curveFor, fmt, lossPct, originStamps, stampify } from "./calc";
 import type { StampSpec } from "./calc";
 import { C, LEVELS } from "./constants";
+import { shiftHex } from "./color";
 import type { Roast } from "../types";
 
 /**
@@ -35,32 +36,93 @@ function paper(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
 }
 
+/**
+ * The wax-seal stamp, drawn on canvas so an exported PNG matches what the
+ * Stamp component shows on screen. Same light direction: upper left.
+ */
 function drawStamp(ctx: CanvasRenderingContext2D, s: StampSpec, cx: number, cy: number, scale = 1) {
   const r = (s.size / 2) * scale;
+  const locked = s.bs === "dashed";
+  const lit = shiftHex(s.c, 46);
+  const mid = shiftHex(s.c, 6);
+  const dark = shiftHex(s.c, -34);
+  const deep = shiftHex(s.c, -58);
+  const ink = locked ? shiftHex(s.c, 14) : shiftHex(s.c, 118);
+
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate((s.rot * Math.PI) / 180);
-  ctx.globalAlpha = s.op;
-  const dash = s.bs === "dashed";
-  if (s.bg !== "transparent") {
-    ctx.fillStyle = s.bg;
+  ctx.globalAlpha = locked ? 0.75 : 1;
+
+  if (locked) {
+    // pressed into the page: faint fill, dashed outlines, no cast shadow
+    ctx.fillStyle = s.c;
+    ctx.globalAlpha = 0.07;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = s.c;
+    ctx.lineWidth = 1.6 * scale;
+    ctx.setLineDash([5 * scale, 4 * scale]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.34;
+    ctx.lineWidth = 1 * scale;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.75;
+  } else {
+    // contact shadow
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = deep;
+    ctx.beginPath();
+    ctx.ellipse(r * 0.05, r * 0.94, r * 0.76, r * 0.15, 0, 0, Math.PI * 2);
+    ctx.filter = `blur(${Math.max(1, 3 * scale)}px)`;
+    ctx.fill();
+    ctx.restore();
+
+    // wax body, lit from the upper left
+    const g = ctx.createRadialGradient(-r * 0.32, -r * 0.44, r * 0.1, 0, 0, r);
+    g.addColorStop(0, lit);
+    g.addColorStop(0.52, mid);
+    g.addColorStop(1, dark);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // recessed inner field
+    ctx.globalAlpha = 0.34;
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // rim bevel + specular sweep
+    ctx.strokeStyle = "rgba(255,255,255,0.42)";
+    ctx.lineWidth = 3 * scale;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.93, Math.PI * 1.02, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.93, Math.PI * 0.05, Math.PI * 0.5);
+    ctx.stroke();
   }
-  ctx.strokeStyle = s.c;
-  ctx.lineWidth = 2 * scale;
-  if (dash) ctx.setLineDash([6 * scale, 5 * scale]);
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.lineWidth = 1 * scale;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = s.c;
+
   ctx.textAlign = "center";
+  ctx.fillStyle = ink;
+  if (!locked) {
+    ctx.shadowColor = deep;
+    ctx.shadowOffsetY = 1.5 * scale;
+  }
   ctx.font = `700 ${Number(s.fsTop) * scale}px ${GROT}`;
   ctx.fillText(s.top, 0, -r * 0.32);
   ctx.font = `700 ${Number(s.fsName) * scale}px ${MONO}`;
@@ -69,7 +131,7 @@ function drawStamp(ctx: CanvasRenderingContext2D, s: StampSpec, cx: number, cy: 
   ctx.fillText(s.mid, 0, r * 0.38);
   if (s.date) {
     ctx.font = `400 ${Number(s.fsDate) * scale}px ${MONO}`;
-    ctx.globalAlpha = s.op * 0.7;
+    ctx.globalAlpha *= 0.75;
     ctx.fillText(s.date, 0, r * 0.6);
   }
   ctx.restore();

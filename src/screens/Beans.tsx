@@ -1,13 +1,25 @@
+import { BeanBag, levelColor } from "../components/objects";
+import { Mug } from "../components/objects";
 import { S, ScreenHeader } from "../components/ui";
 import { wheelGeom } from "../lib/calc";
 import { C, MONO } from "../lib/constants";
 import { useStore } from "../store";
-import type { Bean } from "../types";
+import type { Bean, Roast } from "../types";
 
 export const NEW_BEAN: Bean = { id: "", name: "", origin: "", region: "", process: "", desc: "", flavors: {} };
 
 export function Beans() {
   const { st, set } = useStore();
+
+  /** The roast level this bean is usually taken to — colours its bag label. */
+  const commonLevel = (b: Bean): string | undefined => {
+    const mine: Roast[] = st.roasts.filter((r) => r.beanId === b.id || r.beanName === b.name);
+    const tally: Record<string, number> = {};
+    mine.forEach((r) => {
+      if (r.roastLevel) tally[r.roastLevel] = (tally[r.roastLevel] || 0) + 1;
+    });
+    return Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0];
+  };
 
   return (
     <div>
@@ -27,16 +39,19 @@ export function Beans() {
               className="press"
               style={{ ...S.card, cursor: "pointer" }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em" }}>{b.name}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 3 }}>
-                    {[b.origin, b.region, b.process].filter(Boolean).join(" · ") || "no origin set"}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <BeanBag size={62} color={levelColor(commonLevel(b))} label={b.name} />
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flex: 1, minWidth: 0 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em" }}>{b.name}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 3 }}>
+                      {[b.origin, b.region, b.process].filter(Boolean).join(" · ") || "no origin set"}
+                    </div>
                   </div>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, flexShrink: 0 }}>
+                    {count ? "×" + count : "unroasted"}
+                  </span>
                 </div>
-                <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, flexShrink: 0 }}>
-                  {count ? "×" + count : "unroasted"}
-                </span>
               </div>
               {b.desc ? (
                 <div
@@ -79,8 +94,11 @@ export function Beans() {
           );
         })}
         {st.beans.length === 0 ? (
-          <div style={{ ...S.card, fontSize: 13, color: C.muted }}>
-            No bean profiles yet. Add one here, or create it when you start a roast.
+          <div style={{ ...S.card, display: "flex", alignItems: "center", gap: 16 }}>
+            <Mug size={72} />
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+              No bean profiles yet. Add one here, or create it when you start a roast.
+            </div>
           </div>
         ) : null}
       </div>
