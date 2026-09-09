@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { JotsMark } from "../components/JotsMark";
 import { Stamp } from "../components/Stamp";
 import { S } from "../components/ui";
 import { fmt, lossPct, originStamps, stampify } from "../lib/calc";
@@ -65,7 +66,8 @@ export function Home() {
     });
 
   const teaserStamps = stamps.length
-    ? stamps.slice(0, 3).map((s, i) => stampify(s, i, 54, false, 0, i ? -16 : 0))
+    // Overlap only slightly — the inked rings collide into mush past about -8.
+    ? stamps.slice(0, 3).map((s, i) => stampify(s, i, 50, false, 0, i ? -8 : 0))
     : [stampify({ origin: "Ethiopia" }, 0, 54, true, 0, 0)];
 
   const q = st.q.trim().toLowerCase();
@@ -86,9 +88,12 @@ export function Home() {
     <div>
       <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em" }}>
-          {st.settings.profile.roastery || "Coffee Jots"}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <JotsMark size={34} tile />
+          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em", minWidth: 0 }}>
+            {st.settings.profile.roastery || "Jots"}
+          </h1>
+        </div>
         <button
           onClick={goDevices}
           className="press"

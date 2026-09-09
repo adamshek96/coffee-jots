@@ -7,9 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/apple-touch-icon.png"],
+      includeAssets: ["icons/apple-touch-icon.png", "favicon.svg"],
       manifest: {
-        name: "Coffee Jots",
+        name: "Jots",
         short_name: "Jots",
         description: "Personal roasting journal — time, watts, color and sound.",
         start_url: "/",
