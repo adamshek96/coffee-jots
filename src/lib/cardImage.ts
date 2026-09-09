@@ -1,7 +1,6 @@
 import { curveFor, fmt, lossPct, originStamps, stampify } from "./calc";
 import type { StampSpec } from "./calc";
 import { C, LEVELS } from "./constants";
-import { shiftHex } from "./color";
 import type { Roast } from "../types";
 
 /**
@@ -37,102 +36,81 @@ function paper(ctx: CanvasRenderingContext2D, w: number, h: number) {
 }
 
 /**
- * The wax-seal stamp, drawn on canvas so an exported PNG matches what the
- * Stamp component shows on screen. Same light direction: upper left.
+ * The passport stamp, drawn on canvas so an exported PNG matches the screen.
+ * Rings are stroked as jittered segments rather than true circles, which is
+ * how the rough inked edge reads without SVG filters.
  */
 function drawStamp(ctx: CanvasRenderingContext2D, s: StampSpec, cx: number, cy: number, scale = 1) {
   const r = (s.size / 2) * scale;
   const locked = s.bs === "dashed";
-  const lit = shiftHex(s.c, 46);
-  const mid = shiftHex(s.c, 6);
-  const dark = shiftHex(s.c, -34);
-  const deep = shiftHex(s.c, -58);
-  const ink = locked ? shiftHex(s.c, 14) : shiftHex(s.c, 118);
+
+  // Seeded from the origin so a country stamps the same way every time.
+  let seed = [...s.origin].reduce((a, ch) => a + ch.charCodeAt(0), 7);
+  const rnd = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+
+  /** A ring drawn as short jittered arcs, with occasional gaps in the ink. */
+  const inkRing = (radius: number, width: number, gapChance: number) => {
+    const steps = 90;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    for (let i = 0; i < steps; i++) {
+      if (rnd() < gapChance) continue;
+      const a0 = (i / steps) * Math.PI * 2;
+      const a1 = ((i + 1.15) / steps) * Math.PI * 2;
+      const j = 1 + (rnd() - 0.5) * 0.016;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * j, a0, a1);
+      ctx.stroke();
+    }
+  };
 
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate((s.rot * Math.PI) / 180);
-  ctx.globalAlpha = locked ? 0.75 : 1;
+  ctx.strokeStyle = s.c;
+  ctx.fillStyle = s.c;
+  ctx.globalAlpha = locked ? 0.5 : 0.88;
 
   if (locked) {
-    // pressed into the page: faint fill, dashed outlines, no cast shadow
-    ctx.fillStyle = s.c;
-    ctx.globalAlpha = 0.07;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = s.c;
-    ctx.lineWidth = 1.6 * scale;
     ctx.setLineDash([5 * scale, 4 * scale]);
+    ctx.lineWidth = 1.6 * scale;
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = 0.34;
     ctx.lineWidth = 1 * scale;
     ctx.beginPath();
-    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.arc(0, 0, r * 0.68, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.globalAlpha = 0.75;
   } else {
-    // contact shadow
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = deep;
-    ctx.beginPath();
-    ctx.ellipse(r * 0.05, r * 0.94, r * 0.76, r * 0.15, 0, 0, Math.PI * 2);
-    ctx.filter = `blur(${Math.max(1, 3 * scale)}px)`;
-    ctx.fill();
-    ctx.restore();
-
-    // wax body, lit from the upper left
-    const g = ctx.createRadialGradient(-r * 0.32, -r * 0.44, r * 0.1, 0, 0, r);
-    g.addColorStop(0, lit);
-    g.addColorStop(0.52, mid);
-    g.addColorStop(1, dark);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // recessed inner field
-    ctx.globalAlpha = 0.34;
-    ctx.fillStyle = dark;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // rim bevel + specular sweep
-    ctx.strokeStyle = "rgba(255,255,255,0.42)";
-    ctx.lineWidth = 3 * scale;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.93, Math.PI * 1.02, Math.PI * 1.5);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.22)";
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.93, Math.PI * 0.05, Math.PI * 0.5);
-    ctx.stroke();
+    inkRing(r * 0.94, 1.5 * scale, 0.05);
+    inkRing(r * 0.85, 3.6 * scale, 0.07);
+    inkRing(r * 0.67, 1.1 * scale, 0.05);
+    // serrated die edge
+    ctx.lineWidth = 1.4 * scale;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r * 0.904, Math.sin(a) * r * 0.904);
+      ctx.lineTo(Math.cos(a) * r * 0.94, Math.sin(a) * r * 0.94);
+      ctx.stroke();
+    }
   }
 
   ctx.textAlign = "center";
-  ctx.fillStyle = ink;
-  if (!locked) {
-    ctx.shadowColor = deep;
-    ctx.shadowOffsetY = 1.5 * scale;
-  }
   ctx.font = `700 ${Number(s.fsTop) * scale}px ${GROT}`;
-  ctx.fillText(s.top, 0, -r * 0.32);
+  ctx.fillText(s.top, 0, -r * 0.3);
   ctx.font = `700 ${Number(s.fsName) * scale}px ${MONO}`;
   ctx.fillText(s.origin.toUpperCase(), 0, r * 0.08);
   ctx.font = `700 ${Number(s.fsMid) * scale}px ${MONO}`;
-  ctx.fillText(s.mid, 0, r * 0.38);
+  ctx.fillText(s.mid, 0, r * 0.36);
   if (s.date) {
     ctx.font = `400 ${Number(s.fsDate) * scale}px ${MONO}`;
-    ctx.globalAlpha *= 0.75;
-    ctx.fillText(s.date, 0, r * 0.6);
+    ctx.globalAlpha *= 0.8;
+    ctx.fillText(s.date, 0, r * 0.58);
   }
   ctx.restore();
 }
