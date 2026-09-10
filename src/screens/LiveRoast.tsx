@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { FLIP, FlipReadout } from "../components/FlipReadout";
 import { DangerAction, S } from "../components/ui";
 import { fmt, fmtSigned, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
@@ -85,6 +86,8 @@ export function LiveRoast() {
   const delta = (s: number) => (s >= 0 ? "+" : "−") + fmt(Math.abs(s));
   let paceText = "";
   let paceColor = "#5C5346";
+  /** The reference's settings at the milestone you're heading for. */
+  let refNext: { label: string; t: number; dial?: number; watts: number } | null = null;
   if (G && !dropped) {
     const nk = MS.find((m) => m.key !== "preheat" && !ev[m.key] && G.events[m.key]);
     if (!a.startedAt) paceText = "Pacing against batch " + G.batch + (G.rating ? " · " + "★".repeat(G.rating) : "");
@@ -93,12 +96,16 @@ export function LiveRoast() {
       const d = roastT - target;
       paceText =
         nk.label.toUpperCase() +
-        " target " +
+        " @" +
         fmt(target) +
         " · " +
         (Math.abs(d) < 10 ? "on pace" : d > 0 ? delta(d) + " late" : delta(d) + " early");
       paceColor = Math.abs(d) < 10 ? C.oliveDeep : d > 0 ? C.rust : C.olive;
     } else paceText = "Past batch " + G.batch + "'s last marker";
+
+    // Times alone don't tell you what to change — carry the heat across too.
+    const src = nk ? G.events[nk.key] : null;
+    if (nk && src) refNext = { label: nk.label, t: src.t, dial: src.dial, watts: src.watts };
   }
 
   const isLocked = (k: MilestoneKey): boolean => {
@@ -193,35 +200,32 @@ export function LiveRoast() {
 
           <div
             style={{
-              background: C.readoutBg,
+              background: FLIP.bezel,
               borderRadius: 13,
-              boxShadow: "inset 0 2px 10px rgba(0,0,0,0.65)",
+              boxShadow: "inset 0 2px 10px rgba(0,0,0,0.55)",
               padding: "12px 10px 10px",
               display: "flex",
               alignItems: "stretch",
             }}
           >
-            <div style={{ flex: 1.4, textAlign: "center", borderRight: "1px solid #2A2E33", paddingRight: 8 }}>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                  fontSize: 36,
-                  lineHeight: 1,
-                  letterSpacing: "0.03em",
-                  color: readout,
-                  textShadow: `0 0 12px ${glow}`,
-                }}
-              >
-                {fmt(totalT)}
-              </div>
+            <div
+              style={{
+                flex: 1.4,
+                minWidth: 0,
+                textAlign: "center",
+                borderRight: "1px solid rgba(235,211,168,0.18)",
+                paddingRight: 8,
+              }}
+            >
+              <FlipReadout value={fmt(totalT)} size={26} />
               <div
                 style={{
                   fontSize: 9,
-                  letterSpacing: "0.24em",
-                  color: "#5F6B74",
+                  letterSpacing: "0.18em",
+                  color: FLIP.label,
                   textTransform: "uppercase",
-                  marginTop: 6,
+                  marginTop: 8,
+                  whiteSpace: "nowrap",
                   animation: a.status === "preheating" || cooling ? "cjBlink 1.4s infinite" : "none",
                 }}
               >
@@ -229,7 +233,7 @@ export function LiveRoast() {
               </div>
             </div>
             {/* watts — tap the number to type an exact reading */}
-            <div style={{ flex: 1, textAlign: "center", paddingLeft: 8 }}>
+            <div style={{ flex: 1, minWidth: 0, textAlign: "center", paddingLeft: 8 }}>
               {typingWatts ? (
                 <input
                   autoFocus
@@ -243,16 +247,16 @@ export function LiveRoast() {
                   inputMode="numeric"
                   style={{
                     width: "100%",
-                    background: "rgba(143,180,214,0.12)",
-                    border: `1px solid ${readout}`,
+                    background: FLIP.cardTop,
+                    border: `1px solid ${FLIP.cardBot}`,
                     borderRadius: 8,
                     fontFamily: MONO,
                     fontWeight: 700,
-                    fontSize: 32,
+                    fontSize: 30,
                     lineHeight: 1,
                     textAlign: "center",
-                    color: readout,
-                    padding: "2px 0",
+                    color: FLIP.ink,
+                    padding: "4px 0",
                     outline: "none",
                   }}
                 />
@@ -267,22 +271,24 @@ export function LiveRoast() {
                     border: "none",
                     padding: 0,
                     cursor: "pointer",
-                    fontFamily: MONO,
-                    fontWeight: 700,
-                    fontSize: 36,
-                    lineHeight: 1,
-                    color: readout,
-                    textShadow: `0 0 12px ${glow}`,
                     width: "100%",
                   }}
+                  aria-label={`${D.label} ${a.watts} ${D.unit}, tap to type`}
                 >
-                  {a.watts}
+                  <FlipReadout value={String(a.watts)} size={22} />
                 </button>
               )}
               <div
-                style={{ fontSize: 9, letterSpacing: "0.24em", color: "#5F6B74", textTransform: "uppercase", marginTop: 6 }}
+                style={{
+                  fontSize: 9,
+                  letterSpacing: "0.18em",
+                  color: FLIP.label,
+                  textTransform: "uppercase",
+                  marginTop: 8,
+                  whiteSpace: "nowrap",
+                }}
               >
-                {typingWatts ? "enter to set" : D.label + " " + D.unit + " ·  tap"}
+                {typingWatts ? "enter" : D.unit + " · tap"}
               </div>
             </div>
           </div>
@@ -339,8 +345,41 @@ export function LiveRoast() {
                   cursor: "pointer",
                 }}
               >
-                {a.ghost ? "GHOST B" + a.ghost.batch : ""}
+                {a.ghost ? "FOLLOW B" + a.ghost.batch : ""}
               </button>
+            </div>
+          ) : null}
+
+          {/* what the batch you're following was set to at that point */}
+          {refNext ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                margin: "6px 2px 0",
+                padding: "6px 9px",
+                borderRadius: 9,
+                background: "rgba(239,235,226,0.4)",
+                border: `1px dashed ${C.hair}`,
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: "0.05em",
+                color: "#5C5346",
+              }}
+            >
+              {/* rust means "you're not matching this" — your own dial and
+                  reading are already on screen, so no need to repeat them */}
+              <span style={{ opacity: 0.7, flexShrink: 0 }}>B{a.ghost?.batch} ran</span>
+              {refNext.dial != null && D.heatMax > 0 ? (
+                <span style={{ fontWeight: 700, color: refNext.dial !== a.dial ? C.rust : "#5C5346" }}>
+                  dial {refNext.dial}
+                </span>
+              ) : null}
+              <span style={{ fontWeight: 700, color: Math.abs(refNext.watts - a.watts) > 25 ? C.rust : "#5C5346" }}>
+                {refNext.watts}
+                {D.unit}
+              </span>
             </div>
           ) : null}
 

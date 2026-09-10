@@ -1,4 +1,5 @@
 import { Chip, S, ScreenHeader } from "../components/ui";
+import { fmt } from "../lib/calc";
 import { C, MONO, PROCESSES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -10,6 +11,14 @@ export function NewRoast() {
   const bName = st.setupMode === "pick" ? (picked ? picked.name : "") : st.setupName.trim();
   const autoBatch = bName ? nextBatch(bName) : 1;
   const batchVal = st.setupBatch != null ? st.setupBatch : autoBatch;
+  // batches of this bean you could follow, best-rated first
+  const priorRoasts = bName
+    ? st.roasts
+        .filter((r) => r.beanName === bName && r.events && r.events.drop)
+        .sort((x, y) => (y.rating || 0) - (x.rating || 0) || y.createdAt - x.createdAt)
+    : [];
+  const followed = st.followId ? priorRoasts.find((r) => r.id === st.followId) : null;
+
   const g = parseFloat(st.setupGreen);
   const canBegin = g > 0 && (st.setupMode === "pick" ? !!st.setupBeanId : st.setupName.trim().length > 0);
 
@@ -52,7 +61,7 @@ export function NewRoast() {
           <Chip
             label="New profile"
             on={st.setupMode === "new"}
-            onClick={() => set({ setupMode: "new", setupBatch: null })}
+            onClick={() => set({ setupMode: "new", setupBatch: null, followId: null })}
             style={{ flex: 1, padding: "9px 12px", fontWeight: 600 }}
           />
         </div>
@@ -66,7 +75,7 @@ export function NewRoast() {
                   on={st.setupBeanId === b.id}
                   // Switching bean clears any hand-set batch so the number
                   // re-derives for the bean you actually picked.
-                  onClick={() => set({ setupBeanId: b.id, setupBatch: null })}
+                  onClick={() => set({ setupBeanId: b.id, setupBatch: null, followId: null })}
                 />
               ))}
               {st.beans.length === 0 ? (
@@ -264,6 +273,40 @@ export function NewRoast() {
           </button>
         </div>
       </div>
+
+      {/* follow a previous batch — optional, for repeating a roast you liked */}
+      {priorRoasts.length ? (
+        <div style={{ ...S.card, marginTop: 12 }}>
+          <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Follow a batch</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+            Its milestone times and heat settings show up live as you roast, so you can match them.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            <Chip
+              label="Best rated"
+              on={st.followId === null}
+              onClick={() => set({ followId: null })}
+              mono
+            />
+            {priorRoasts.map((r) => (
+              <Chip
+                key={r.id}
+                label={`B${r.batch || 1}${r.rating ? " " + "★".repeat(r.rating) : ""}`}
+                on={st.followId === r.id}
+                onClick={() => set({ followId: st.followId === r.id ? null : r.id })}
+                mono
+              />
+            ))}
+          </div>
+          {followed ? (
+            <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 10 }}>
+              {"B" + (followed.batch || 1) + " · " + fmt(followed.durationSec || 0) + " total"}
+              {followed.events.fc ? " · FC " + fmt(followed.events.fc.t) : ""}
+              {followed.roastLevel ? " · " + followed.roastLevel : ""}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* green weight */}
       <div style={{ ...S.card, marginTop: 12 }}>

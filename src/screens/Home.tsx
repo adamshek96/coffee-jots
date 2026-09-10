@@ -90,9 +90,9 @@ export function Home() {
         <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <JotsMark size={34} tile drop />
-          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em", minWidth: 0 }}>
-            {st.settings.profile.roastery || "Jots"}
-          </h1>
+          {/* The product is always Jots at the top; a roastery name is a
+              subtitle, never a replacement for the name. */}
+          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em", minWidth: 0 }}>Jots</h1>
         </div>
         <button
           onClick={goDevices}
@@ -111,7 +111,7 @@ export function Home() {
             color: C.muted,
           }}
         >
-          <span>personal roasting journal ·</span>
+          <span>{st.settings.profile.roastery || "personal roasting journal"} ·</span>
           <span
             style={{
               display: "flex",

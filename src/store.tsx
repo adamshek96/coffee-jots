@@ -75,6 +75,8 @@ export interface AppState {
   // new-roast form
   setupMode: "pick" | "new";
   setupBeanId: string | null;
+  /** Which past roast to follow this time; null = best-rated automatically. */
+  followId: string | null;
   setupName: string;
   setupOrigin: string;
   setupProcess: string;
@@ -122,6 +124,7 @@ const initialState: AppState = {
   obLock: "faceid",
   setupMode: "pick",
   setupBeanId: null,
+  followId: null,
   setupName: "",
   setupOrigin: "",
   setupProcess: "",
@@ -400,7 +403,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const D = devSnap(device);
     const prior = s.roasts.filter((r) => r.beanName === bean!.name && r.events && r.events.drop);
     prior.sort((x, y) => (y.rating || 0) - (x.rating || 0) || y.createdAt - x.createdAt);
-    const g0 = prior[0];
+    // An explicit pick wins; otherwise follow the best-rated prior batch.
+    const g0 = s.followId ? s.roasts.find((r) => r.id === s.followId) : prior[0];
     const ghost = g0
       ? { batch: g0.batch || 1, rating: g0.rating || 0, events: g0.events, durationSec: g0.durationSec }
       : null;
