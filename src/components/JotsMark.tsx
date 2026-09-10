@@ -14,11 +14,14 @@ export function JotsMark({
   tile = false,
   color = "#F4F1E9",
   ground = "#575618",
+  drop = false,
 }: {
   size?: number;
   tile?: boolean;
   color?: string;
   ground?: string;
+  /** Let the tittle fall onto the stem and bounce once, on mount. */
+  drop?: boolean;
 }) {
   const uid = useId().replace(/:/g, "");
 
@@ -57,9 +60,14 @@ export function JotsMark({
         <path d="M78 52 V78 C78 96 60 103 47 92" stroke={color} strokeWidth="22" />
         <path d="M78 52 V78 C78 96 60 103 47 92" stroke={`url(#clay${uid})`} strokeWidth="22" />
       </g>
-      <circle cx="78" cy="27" r="13" fill="#000" opacity="0.2" transform="translate(0,4)" />
-      <circle cx="78" cy="27" r="13" fill={color} />
-      <circle cx="78" cy="27" r="13" fill={`url(#ball${uid})`} />
+      <g
+        className={drop ? "cjDrop" : undefined}
+        style={drop ? { transformOrigin: "78px 27px", transformBox: "fill-box" } : undefined}
+      >
+        <circle cx="78" cy="27" r="13" fill="#000" opacity="0.2" transform="translate(0,4)" />
+        <circle cx="78" cy="27" r="13" fill={color} />
+        <circle cx="78" cy="27" r="13" fill={`url(#ball${uid})`} />
+      </g>
     </svg>
   );
 }

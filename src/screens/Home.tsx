@@ -89,7 +89,7 @@ export function Home() {
       <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <JotsMark size={34} tile />
+          <JotsMark size={34} tile drop />
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.03em", minWidth: 0 }}>
             {st.settings.profile.roastery || "Jots"}
           </h1>
@@ -361,12 +361,13 @@ export function Home() {
           paddingRight: 16,
         }}
       >
-        {statCards.map((c) => (
+        {statCards.map((c, i) => (
           <div
             key={c.l}
             onClick={() => set({ screen: "analytics" })}
-            className="press"
+            className="press cjIn"
             style={{
+              animationDelay: `${Math.min(i, 6) * 45}ms`,
               flex: "0 0 auto",
               minWidth: 116,
               background: C.card,
@@ -529,15 +530,17 @@ export function Home() {
         </div>
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filtered.map((r) => {
+        {filtered.map((r, i) => {
           const loss = lossPct(r);
           const LV = LEVELS.find((x) => x.name === r.roastLevel);
           return (
             <div
               key={r.id}
               onClick={() => set({ detailId: r.id, compareId: null, screen: "detail" })}
-              className="press"
+              className="press cjIn"
               style={{
+                // capped so a long journal doesn't leave the last rows waiting
+                animationDelay: `${Math.min(i, 7) * 40}ms`,
                 ...S.card,
                 padding: "14px 16px",
                 display: "flex",

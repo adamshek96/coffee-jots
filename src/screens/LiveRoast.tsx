@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { DangerAction, S } from "../components/ui";
 import { fmt, fmtSigned, ramp } from "../lib/calc";
@@ -33,6 +33,22 @@ export function LiveRoast() {
   const [, tick] = useReducer((n: number) => n + 1, 0);
   const [typingWatts, setTypingWatts] = useState(false);
   const [wattDraft, setWattDraft] = useState("");
+
+  /**
+   * Which milestone just landed, so only that tile plays the confirmation.
+   * Animating every recorded tile would make them all pop together whenever
+   * this screen remounts mid-roast.
+   */
+  const [justLogged, setJustLogged] = useState<MilestoneKey | null>(null);
+  const loggedTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(loggedTimer.current), []);
+
+  const handleTap = (k: MilestoneKey) => {
+    tap(k);
+    setJustLogged(k);
+    clearTimeout(loggedTimer.current);
+    loggedTimer.current = setTimeout(() => setJustLogged(null), 400);
+  };
 
   const running = a.status === "preheating" || a.status === "roasting" || a.status === "cooling";
 
@@ -519,7 +535,7 @@ export function LiveRoast() {
             return (
               <button
                 key={m.key}
-                onClick={() => tap(m.key)}
+                onClick={() => handleTap(m.key)}
                 disabled={locked || !!e}
                 className="pressS"
                 style={{
@@ -534,7 +550,11 @@ export function LiveRoast() {
                   cursor: locked || e ? "default" : "pointer",
                   fontFamily: "inherit",
                   opacity: locked ? 0.4 : 1,
-                  animation: isNext ? "cjPulse 1.8s infinite" : "none",
+                  animation: isNext
+                    ? "cjPulse 1.8s infinite"
+                    : justLogged === m.key
+                      ? "cjLogged 240ms cubic-bezier(0.34, 1.4, 0.5, 1)"
+                      : "none",
                   display: "block",
                 }}
               >

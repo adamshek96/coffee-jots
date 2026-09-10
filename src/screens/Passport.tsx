@@ -77,8 +77,12 @@ export function Passport() {
           {stamps.map((s, i) => {
             const spec = stampify(s, i, 104, false, DYS[i % 6], 0);
             return (
+              // positioning stays on the outer node so the landing animation,
+              // which owns transform, doesn't fight the vertical offset
               <div key={s.origin} style={{ transform: `translateY(${spec.dy}px)` }}>
-                <Stamp s={spec} showDate />
+                <div className="cjStamp" style={{ animationDelay: `${i * 85}ms` }}>
+                  <Stamp s={spec} showDate />
+                </div>
               </div>
             );
           })}

@@ -341,67 +341,90 @@ export function RoastDetail() {
                     }}
                   />
                 ))}
-                <svg
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
-                >
-                  {comparePath ? (
+                {/* the reveal lives on a wrapper so the stroke itself is untouched */}
+                <div className="cjReveal" style={{ position: "absolute", inset: 0 }}>
+                  <svg
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+                  >
+                    {comparePath ? (
+                      <path
+                        d={comparePath}
+                        style={{
+                          fill: "none",
+                          stroke: C.compare,
+                          strokeWidth: 2,
+                          strokeDasharray: "5 4",
+                          strokeLinejoin: "round",
+                          vectorEffect: "non-scaling-stroke",
+                        }}
+                      />
+                    ) : null}
                     <path
-                      d={comparePath}
+                      d={curvePath}
                       style={{
                         fill: "none",
-                        stroke: C.compare,
-                        strokeWidth: 2,
-                        strokeDasharray: "5 4",
+                        stroke: "#C0472B",
+                        strokeWidth: 2.5,
                         strokeLinejoin: "round",
+                        strokeLinecap: "round",
                         vectorEffect: "non-scaling-stroke",
                       }}
                     />
-                  ) : null}
-                  <path
-                    d={curvePath}
-                    style={{
-                      fill: "none",
-                      stroke: "#C0472B",
-                      strokeWidth: 2.5,
-                      strokeLinejoin: "round",
-                      strokeLinecap: "round",
-                      vectorEffect: "non-scaling-stroke",
-                    }}
-                  />
-                </svg>
-                {curveDots.map((d, i) => (
-                  <span key={i}>
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: d.x + "%",
-                        top: d.y + "%",
-                        transform: "translate(-50%,-50%)",
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: C.paperLight,
-                        border: "2px solid #C0472B",
-                      }}
-                    />
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: d.x + "%",
-                        top: d.y + "%",
-                        transform: `translate(-50%,${d.tagShift})`,
-                        fontFamily: MONO,
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: C.rust,
-                      }}
-                    >
-                      {d.tag}
+                  </svg>
+                </div>
+                {curveDots.map((d, i) => {
+                  // each dot lands as the drawing line reaches it
+                  const at = (Number(d.x) / 100) * 1100;
+                  return (
+                    <span key={i}>
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: d.x + "%",
+                          top: d.y + "%",
+                          transform: "translate(-50%,-50%)",
+                        }}
+                      >
+                        <span
+                          className="cjDot"
+                          style={{
+                            display: "block",
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background: C.paperLight,
+                            border: "2px solid #C0472B",
+                            animationDelay: `${at}ms`,
+                          }}
+                        />
+                      </span>
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: d.x + "%",
+                          top: d.y + "%",
+                          transform: `translate(-50%,${d.tagShift})`,
+                        }}
+                      >
+                        <span
+                          className="cjIn"
+                          style={{
+                            display: "block",
+                            fontFamily: MONO,
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: C.rust,
+                            animationDelay: `${at + 60}ms`,
+                          }}
+                        >
+                          {d.tag}
+                        </span>
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div style={{ position: "relative", height: 14, marginLeft: 34, marginTop: 4 }}>
@@ -445,10 +468,12 @@ export function RoastDetail() {
         <div style={{ ...S.card, marginTop: 12 }}>
           <div style={{ ...S.sectionLabel, marginBottom: 10 }}>Phase breakdown</div>
           <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", height: 30 }}>
-            {phases.map((p) => (
+            {phases.map((p, i) => (
               <div
                 key={p.key}
+                className="cjSeg"
                 style={{
+                  animationDelay: `${i * 90}ms`,
                   width: ((p.d / pTotal) * 100).toFixed(1) + "%",
                   background: PHASE[p.key],
                   display: "flex",
