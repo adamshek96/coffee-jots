@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmt, fmtSigned } from "../lib/calc";
+import { fmt, fmtSigned, heatChangeDir, heatChangeLabel } from "../lib/calc";
 import { C, MONO, MS, OPTIONAL_MS, SHADES } from "../lib/constants";
 import type { EventMap, Ghost, MilestoneKey } from "../types";
 
@@ -173,6 +173,11 @@ export function MilestoneSheet({
             const e = ev[m.key];
             const g = ghost?.events[m.key];
             const isNext = m.key === nextKey && !e;
+            // Which way the heat went, yours and the batch you're chasing. The
+            // row already carries the reading it landed on; this is the part
+            // you can't get from a number on its own.
+            const myDir = m.key === "extend" && e ? heatChangeDir(ev) : null;
+            const gDir = m.key === "extend" && g && ghost ? heatChangeDir(ghost.events) : null;
             // Charge is 0 by definition and preheat length is a habit, not a
             // target — a delta on either says nothing about how the roast ran.
             const paced = m.key !== "preheat" && m.key !== "charge";
@@ -190,20 +195,27 @@ export function MilestoneSheet({
                   opacity: e || isNext ? 1 : 0.5,
                 }}
               >
-                <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                  {e?.shade != null ? (
-                    <span
-                      style={{
-                        width: 9,
-                        height: 9,
-                        borderRadius: "50%",
-                        background: SHADES[e.shade].c,
-                        flexShrink: 0,
-                        boxShadow: "inset 0 0 0 1px rgba(36,29,22,0.25)",
-                      }}
-                    />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {e?.shade != null ? (
+                      <span
+                        style={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: "50%",
+                          background: SHADES[e.shade].c,
+                          flexShrink: 0,
+                          boxShadow: "inset 0 0 0 1px rgba(36,29,22,0.25)",
+                        }}
+                      />
+                    ) : null}
+                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.label}</span>
+                  </span>
+                  {myDir != null ? (
+                    <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.muted, marginTop: 1 }}>
+                      {heatChangeLabel(myDir)}
+                    </span>
                   ) : null}
-                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.label}</span>
                 </span>
 
                 <span style={{ textAlign: "right" }}>
@@ -234,7 +246,7 @@ export function MilestoneSheet({
                     </span>
                     {g ? (
                       <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.muted, marginTop: 1 }}>
-                        {settings(g)}
+                        {(gDir != null ? (gDir < 0 ? "↓" : gDir > 0 ? "↑" : "·") + " " : "") + settings(g)}
                       </span>
                     ) : null}
                   </span>

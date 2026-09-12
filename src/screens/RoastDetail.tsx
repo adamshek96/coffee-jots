@@ -16,9 +16,11 @@ export function RoastDetail() {
 
   const ev = r.events || {};
   const LV = LEVELS.find((x) => x.name === r.roastLevel);
-  const pts = KEYS.map((k) => (ev[k] ? { k, ...ev[k]! } : null)).filter(Boolean) as ({
+  // By time, not by rail order — a heat change can be tapped before FC Ends,
+  // and the line has to run forwards whatever order the taps came in.
+  const pts = (KEYS.map((k) => (ev[k] ? { k, ...ev[k]! } : null)).filter(Boolean) as ({
     k: (typeof KEYS)[number];
-  } & { t: number; watts: number; shade?: number })[];
+  } & { t: number; watts: number; shade?: number })[]).sort((a, b) => a.t - b.t);
   const hasCurve = pts.length >= 2;
   const dropT = ev.drop ? ev.drop.t : r.durationSec || (pts.length ? pts[pts.length - 1].t : 0);
 
@@ -42,7 +44,8 @@ export function RoastDetail() {
     let lo = Math.min(...ws);
     let hi = Math.max(...ws);
     const span = Math.max(40, hi - lo);
-    lo = Math.floor((lo - span * 0.18) / 10) * 10;
+    // Neither watts nor a probe reading goes below zero, so the axis doesn't.
+    lo = Math.max(0, Math.floor((lo - span * 0.18) / 10) * 10);
     hi = Math.ceil((hi + span * 0.18) / 10) * 10;
     const X = (t: number) => 4 + ((t - minT) / spanT) * 92;
     const Y = (w: number) => 8 + (1 - (w - lo) / (hi - lo)) * 84;
@@ -77,7 +80,9 @@ export function RoastDetail() {
       };
     });
     if (cmpR) {
-      const cpts = KEYS.map((k) => cmpR.events[k] || null).filter(Boolean) as { t: number; watts: number }[];
+      const cpts = (KEYS.map((k) => cmpR.events[k] || null).filter(Boolean) as { t: number; watts: number }[]).sort(
+        (a, b) => a.t - b.t,
+      );
       comparePath = cpts
         .map(
           (p, i) =>
@@ -101,7 +106,7 @@ export function RoastDetail() {
         });
       });
     } else {
-      const kk = KEYS.filter((k) => ev[k]);
+      const kk = KEYS.filter((k) => ev[k]).sort((a, b) => ev[a]!.t - ev[b]!.t);
       kk.forEach((k, i) => {
         const e = ev[k]!;
         const nxt = kk[i + 1] ? ev[kk[i + 1]]! : null;
@@ -738,7 +743,9 @@ export function RoastDetail() {
           <span style={{ textAlign: "right" }}>Dial</span>
           <span style={{ textAlign: "right" }}>{r.unit || "W"}</span>
         </div>
-        {KEYS.filter((k) => ev[k]).map((k) => {
+        {KEYS.filter((k) => ev[k])
+          .sort((a, b) => ev[a]!.t - ev[b]!.t)
+          .map((k) => {
           const m = MS.find((x) => x.key === k)!;
           const e = ev[k]!;
           return (

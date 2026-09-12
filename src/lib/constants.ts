@@ -102,14 +102,19 @@ export const FANS: Record<FanKind, string[] | null> = {
 };
 
 // ---- milestones, in rail order ----
+/**
+ * Rail order. A heat change sits between first crack and the end of it, which
+ * is when you actually reach for the dial — though nothing depends on that
+ * being the order it happened in: anything drawn from these is sorted by time.
+ */
 export const KEYS: MilestoneKey[] = [
   "preheat",
   "charge",
   "yellowing",
   "browning",
   "fc",
-  "fcEnds",
   "extend",
+  "fcEnds",
   "cooling",
   "drop",
 ];
@@ -120,8 +125,8 @@ export const MS: { key: MilestoneKey; label: string; hint: string }[] = [
   { key: "yellowing", label: "Yellowing", hint: "drying done, straw color" },
   { key: "browning", label: "Browning", hint: "maillard, smells bready" },
   { key: "fc", label: "First Crack", hint: "first snaps" },
-  { key: "fcEnds", label: "FC Ends", hint: "cracking slows" },
   { key: "extend", label: "Heat Change", hint: "optional — moved the heat, up or down" },
+  { key: "fcEnds", label: "FC Ends", hint: "cracking slows" },
   { key: "cooling", label: "Cooling", hint: "heat off, fan high, coasting" },
   { key: "drop", label: "Drop", hint: "ends the roast, stops the clock" },
 ];
