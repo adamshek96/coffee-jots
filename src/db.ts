@@ -63,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastExportAt: null,
   profile: DEFAULT_PROFILE,
   lockCfg: DEFAULT_LOCK,
+  haptics: true,
 };
 
 const LEGACY_KEY = "coffeejots.db.v1";

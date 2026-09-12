@@ -5,6 +5,7 @@ import { MilestoneSheet } from "../components/MilestoneSheet";
 import { DangerAction, S } from "../components/ui";
 import { fmt, fmtSigned, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
+import { haptic } from "../lib/haptics";
 import { keepAwake } from "../lib/wakeLock";
 import { useStore } from "../store";
 import type { MilestoneKey } from "../types";
@@ -119,6 +120,44 @@ export function LiveRoast() {
   };
   const nextKey = MS.find((m) => !ev[m.key] && !isLocked(m.key))?.key;
   const nx = MS.find((m) => m.key === nextKey);
+
+  /**
+   * The batch you're chasing, felt instead of read. When the clock reaches the
+   * time B# hit a marker you haven't logged yet, the phone taps you — your ear
+   * sharpens at the moment it matters, rather than after you've looked down.
+   *
+   * The first pass only seeds the set: reopening the app mid-roast would
+   * otherwise fire every marker already behind you at once.
+   */
+  const ghostSeen = useRef<Set<MilestoneKey> | null>(null);
+  useEffect(() => {
+    if (!G || !a.startedAt || dropped) return;
+    const seeding = ghostSeen.current === null;
+    if (!ghostSeen.current) ghostSeen.current = new Set();
+    const seen = ghostSeen.current;
+    for (const m of MS) {
+      // Charge is zero for both and preheat runs on its own clock.
+      if (m.key === "preheat" || m.key === "charge") continue;
+      const g = G.events[m.key];
+      if (!g || seen.has(m.key) || roastT < g.t) continue;
+      seen.add(m.key);
+      // If you got there first there's nothing to point out.
+      if (!seeding && !ev[m.key]) haptic("ghost");
+    }
+  });
+
+  /** Cooling ran out while you were off grinding. */
+  const cooled = useRef(false);
+  useEffect(() => {
+    if (!cooling) {
+      cooled.current = false;
+      return;
+    }
+    if (coolLeft <= 0 && !cooled.current) {
+      cooled.current = true;
+      haptic("done");
+    }
+  });
 
   const RAMP = ramp(D.heatMax || 1);
   const SP = D.steps || [10, 5];

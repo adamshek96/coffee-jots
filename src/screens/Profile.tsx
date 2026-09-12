@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Chip, S, ScreenHeader } from "../components/ui";
 import { fileToAvatar } from "../lib/avatar";
 import { C, MONO } from "../lib/constants";
+import { hapticsAvailable } from "../lib/haptics";
 import { passkeyAvailable } from "../lib/lock";
 import { useStore } from "../store";
 
@@ -16,12 +17,15 @@ export function Profile() {
     enablePasscodeLock,
     disableLock,
     setAutoLockMinutes,
+    setHaptics,
     ensureBackupCode,
     lockNow,
   } = store;
 
   const profile = st.settings.profile;
   const cfg = st.settings.lockCfg;
+  // Absent on journals that predate haptics — those should feel them.
+  const hapticsOn = st.settings.haptics !== false;
 
   const [name, setName] = useState(profile.displayName);
   const [roastery, setRoastery] = useState(profile.roastery);
@@ -209,6 +213,51 @@ export function Profile() {
           </div>
         ))}
       </div>
+
+      {/* haptics */}
+      {hapticsAvailable() ? (
+        <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "120ms" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={S.sectionLabel}>Haptics</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>
+                A tap when a milestone lands, so you can log one without taking your eyes off the beans.
+              </div>
+            </div>
+            <button
+              onClick={() => setHaptics(!hapticsOn)}
+              role="switch"
+              aria-checked={hapticsOn}
+              aria-label="Haptics"
+              className="pressS"
+              style={{
+                flexShrink: 0,
+                width: 54,
+                height: 32,
+                borderRadius: 999,
+                border: `1px solid ${hapticsOn ? C.olive : C.hair}`,
+                background: hapticsOn ? C.olive : C.field,
+                cursor: "pointer",
+                padding: 3,
+                display: "flex",
+                justifyContent: hapticsOn ? "flex-end" : "flex-start",
+                transition: "background-color 200ms ease, border-color 200ms ease",
+              }}
+            >
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: hapticsOn ? C.cream : "#fff",
+                  boxShadow: "0 1px 3px rgba(36,29,22,0.3)",
+                  display: "block",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* lock */}
       <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "160ms" }}>

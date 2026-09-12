@@ -17,7 +17,8 @@ import {
   saveSettings,
 } from "./db";
 import { FANS, METRICS, MS } from "./lib/constants";
-import { vibrate } from "./lib/haptics";
+import { haptic, setHapticsEnabled } from "./lib/haptics";
+import type { Haptic } from "./lib/haptics";
 import { createPasskey, generateBackupCode, hashPasscode, randomSalt, safeEqual } from "./lib/lock";
 import type {
   ActiveRoast,
@@ -99,6 +100,17 @@ function roastInProgress(a: ActiveRoast | null): boolean {
   return !!a && (a.status === "preheating" || a.status === "roasting" || a.status === "cooling");
 }
 
+/**
+ * Milestones that feel unlike the rest. Everything absent from this map gets
+ * the plain `mark`, which is the point: yellowing and browning should feel
+ * identical so the three that aren't stand out through the fingertips.
+ */
+const MILESTONE_HAPTIC: Partial<Record<MilestoneKey, Haptic>> = {
+  charge: "charge",
+  fc: "crack",
+  drop: "drop",
+};
+
 const initialState: AppState = {
   loaded: false,
   locked: false,
@@ -152,6 +164,7 @@ export interface Store {
   beginRoast: () => void;
   savePost: () => void;
   discardActive: () => void;
+  setHaptics: (on: boolean) => void;
   saveDraft: () => void;
   deleteDraft: () => void;
   saveBeanDraft: () => void;
@@ -198,6 +211,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadAll().then((d) => {
+      setHapticsEnabled(d.settings.haptics !== false);
       setSt((s) => ({
         ...s,
         loaded: true,
@@ -339,7 +353,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           next.droppedAt = Date.now();
         }
       }
-      vibrate();
+      // Reached only once the tap has actually changed something — the guards
+      // above return early on a replay, and a buzz for nothing is a lie.
+      haptic(MILESTONE_HAPTIC[key] || "mark");
       set({ active: next });
       persistActive(next);
     },
@@ -366,7 +382,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (last && Math.abs(t - last.t) < 5) obs[obs.length - 1] = { ...last, ...patch, t: last.t };
       else obs.push({ t, ...patch });
       const next: ActiveRoast = { ...a, observations: obs };
-      vibrate(15);
+      haptic("tick");
       set({ active: next });
       persistActive(next);
     },
@@ -470,6 +486,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       observations: a.observations,
       finishedAt: Date.now(),
     };
+    // A country the journal has never seen — the passport gains a stamp, and
+    // that is rare enough to be worth feeling. Saving on its own stays silent.
+    const origin = (a.origin || "").trim().toLowerCase();
+    if (origin && !s.roasts.some((r) => (r.origin || "").trim().toLowerCase() === origin)) {
+      haptic("stamp");
+    }
     set({ roasts: [rec, ...s.roasts], active: null, detailId: rec.id, compareId: null, screen: "detail" });
     void saveRoast(rec).then(touch);
     persistActive(null);
@@ -485,6 +507,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       void saveSettings(settings).then(touch);
     },
     [touch],
+  );
+
+  const setHaptics = useCallback(
+    (on: boolean) => {
+      const settings = { ...ref.current.settings, haptics: on };
+      setHapticsEnabled(on);
+      // Turning them on answers its own question: you feel what you just chose.
+      if (on) haptic("mark");
+      set({ settings });
+      persistSettings(settings);
+    },
+    [set, persistSettings],
   );
 
   const saveDraft = useCallback(() => {
@@ -864,6 +898,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       beginRoast,
       savePost,
       discardActive,
+      setHaptics,
       saveDraft,
       deleteDraft,
       saveBeanDraft,
@@ -904,6 +939,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       beginRoast,
       savePost,
       discardActive,
+      setHaptics,
       saveDraft,
       deleteDraft,
       saveBeanDraft,

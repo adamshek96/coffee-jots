@@ -167,6 +167,8 @@ export interface Settings {
   lastExportAt: number | null;
   profile: Profile;
   lockCfg: LockConfig;
+  /** Absent on journals saved before haptics existed — read it as on. */
+  haptics?: boolean;
 }
 
 export interface ExportShape {
