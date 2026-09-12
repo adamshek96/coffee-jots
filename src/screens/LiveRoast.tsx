@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { FLIP, FlipReadout } from "../components/FlipReadout";
+import { MilestoneSheet } from "../components/MilestoneSheet";
 import { DangerAction, S } from "../components/ui";
 import { fmt, fmtSigned, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
@@ -34,6 +35,7 @@ export function LiveRoast() {
   const [, tick] = useReducer((n: number) => n + 1, 0);
   const [typingWatts, setTypingWatts] = useState(false);
   const [wattDraft, setWattDraft] = useState("");
+  const [logOpen, setLogOpen] = useState(false);
 
   /**
    * Which milestone just landed, so only that tile plays the confirmation.
@@ -134,7 +136,7 @@ export function LiveRoast() {
   const clockLabel = dropped ? "Done" : cooling ? "Cooling" : a.status === "preheating" ? "Preheat" : a.startedAt ? "Total" : "Ready";
 
   return (
-    <div>
+    <div className={dropped ? undefined : "liveFill"} style={{ paddingBottom: 76 }}>
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={() => set({ screen: "home" })} style={{ ...S.backBtn, fontSize: 16 }}>
@@ -179,13 +181,25 @@ export function LiveRoast() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      {/* Once the roast is done the panel has no controls left, so it stops
+          stretching — an empty faceplate the height of the rail reads as broken. */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: dropped ? "flex-start" : "stretch",
+          flex: dropped ? undefined : 1,
+          minHeight: 0,
+        }}
+      >
         {/* machine panel */}
         <div
           style={{
             flex: 1,
             minWidth: 0,
             position: "relative",
+            display: "flex",
+            flexDirection: "column",
             background: "linear-gradient(180deg, #CFC7B8, #BFB6A5)",
             border: "1px solid #A79E8C",
             borderRadius: 20,
@@ -275,7 +289,7 @@ export function LiveRoast() {
                   }}
                   aria-label={`${D.label} ${a.watts} ${D.unit}, tap to type`}
                 >
-                  <FlipReadout value={String(a.watts)} size={22} />
+                  <FlipReadout value={String(a.watts)} size={24} />
                 </button>
               )}
               <div
@@ -405,7 +419,9 @@ export function LiveRoast() {
           </div>
 
           {!dropped ? (
-            <>
+            /* Spare height is shared out between the control groups rather than
+               left as dead panel at the bottom. */
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-evenly", minHeight: 0 }}>
               {D.heatMax > 0 ? (
                 <>
                   <div
@@ -430,7 +446,7 @@ export function LiveRoast() {
                     <button
                       onClick={() => patchA({ dial: Math.max(1, a.dial - 1) })}
                       className="pressS"
-                      style={{ ...machineBtn, width: 44, height: 44, fontSize: 18, flexShrink: 0 }}
+                      style={{ ...machineBtn, width: 46, height: 48, fontSize: 18, flexShrink: 0 }}
                     >
                       −
                     </button>
@@ -440,7 +456,7 @@ export function LiveRoast() {
                           key={i}
                           style={{
                             flex: 1,
-                            height: 22,
+                            height: 26,
                             borderRadius: 5,
                             border: "1px solid #A79E8C",
                             background: i < a.dial ? c : "#DED7C8",
@@ -451,7 +467,7 @@ export function LiveRoast() {
                     <button
                       onClick={() => patchA({ dial: Math.min(D.heatMax, a.dial + 1) })}
                       className="pressS"
-                      style={{ ...machineBtn, width: 44, height: 44, fontSize: 18, flexShrink: 0 }}
+                      style={{ ...machineBtn, width: 46, height: 48, fontSize: 18, flexShrink: 0 }}
                     >
                       +
                     </button>
@@ -482,7 +498,7 @@ export function LiveRoast() {
                         style={{
                           ...machineBtn,
                           flex: 1,
-                          height: 44,
+                          height: 48,
                           fontSize: 12,
                           letterSpacing: "0.1em",
                           boxShadow: "0 2px 0 rgba(122,113,95,0.45)",
@@ -514,7 +530,7 @@ export function LiveRoast() {
                     key={d}
                     onClick={() => patchA({ watts: Math.max(0, a.watts + d) })}
                     className="pressS"
-                    style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
+                    style={{ ...machineBtn, flex: 1, height: 48, fontSize: 13 }}
                   >
                     {(d > 0 ? "+" : "−") + Math.abs(d)}
                   </button>
@@ -540,7 +556,7 @@ export function LiveRoast() {
                     <button
                       onClick={() => patchA({ coolDuration: Math.max(30, a.coolDuration - 30) })}
                       className="pressS"
-                      style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
+                      style={{ ...machineBtn, flex: 1, height: 48, fontSize: 13 }}
                     >
                       −30s
                     </button>
@@ -550,19 +566,19 @@ export function LiveRoast() {
                     <button
                       onClick={() => patchA({ coolDuration: a.coolDuration + 30 })}
                       className="pressS"
-                      style={{ ...machineBtn, flex: 1, height: 44, fontSize: 13 }}
+                      style={{ ...machineBtn, flex: 1, height: 48, fontSize: 13 }}
                     >
                       +30s
                     </button>
                   </div>
                 </>
               ) : null}
-            </>
+            </div>
           ) : null}
         </div>
 
         {/* milestone rail */}
-        <div style={{ width: 112, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={{ width: 118, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7 }}>
           {MS.map((m) => {
             const e = ev[m.key];
             const locked = isLocked(m.key);
@@ -580,7 +596,7 @@ export function LiveRoast() {
                 style={{
                   flex: 1,
                   width: "100%",
-                  minHeight: 48,
+                  minHeight: 52,
                   textAlign: "left",
                   borderRadius: 12,
                   border: `1.5px solid ${e ? "#B7C08C" : isNext ? C.rust : C.hair}`,
@@ -600,7 +616,7 @@ export function LiveRoast() {
                 <span
                   style={{
                     display: "block",
-                    fontSize: 9,
+                    fontSize: 9.5,
                     textTransform: "uppercase",
                     letterSpacing: "0.11em",
                     color: C.muted,
@@ -614,7 +630,7 @@ export function LiveRoast() {
                     style={{
                       fontFamily: MONO,
                       fontWeight: 700,
-                      fontSize: 14,
+                      fontSize: 15,
                       color: e ? C.oliveDeep : isNext ? C.rust : C.muted,
                     }}
                   >
@@ -785,6 +801,53 @@ export function LiveRoast() {
           onConfirm={discardActive}
         />
       </div>
+
+      {/* Stays put over the roast: the full log is a glance away without
+          scrolling the machine off screen. */}
+      <button
+        onClick={() => setLogOpen(true)}
+        className="pressX"
+        style={{
+          position: "fixed",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "calc(14px + env(safe-area-inset-bottom))",
+          zIndex: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          whiteSpace: "nowrap",
+          border: "none",
+          borderRadius: 999,
+          padding: "13px 19px",
+          background: C.ink,
+          color: C.cream,
+          fontFamily: MONO,
+          fontSize: 11.5,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          cursor: "pointer",
+          boxShadow: "0 8px 22px rgba(36,29,22,0.32)",
+        }}
+      >
+        <span style={{ fontSize: 10 }}>▲</span>
+        MILESTONE LOG
+        {G ? <span style={{ opacity: 0.65 }}>· B{G.batch}</span> : null}
+      </button>
+
+      {logOpen ? (
+        <MilestoneSheet
+          ev={ev}
+          ghost={G}
+          unit={D.unit}
+          heatMax={D.heatMax}
+          roastT={roastT}
+          totalT={totalT}
+          started={!!a.startedAt}
+          nextKey={nextKey}
+          onClose={() => setLogOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

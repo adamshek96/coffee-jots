@@ -19,6 +19,7 @@ button { touch-action: manipulation; }
 .pressY:active { transform: translateY(1px); }
 .pressS:active { transform: scale(0.94); }
 .pressC:active { transform: translate(-50%, -50%) scale(0.94); }
+.pressX:active { transform: translateX(-50%) scale(0.94); }
 
 .noScrollbar { scrollbar-width: none; }
 .noScrollbar::-webkit-scrollbar { display: none; }
@@ -133,6 +134,12 @@ button { touch-action: manipulation; }
   75% { transform: rotateZ(2deg); }
 }
 
+/* The milestone log arriving over the roast, and leaving again. */
+@keyframes cjSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes cjSheetDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes cjFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cjFadeOut { from { opacity: 1; } to { opacity: 0; } }
+
 /* Wild wobble/shake for loading */
 @keyframes cjWobble {
   0%, 100% { transform: rotateZ(0deg) scale(1); }
@@ -205,6 +212,16 @@ button:not(:disabled):active {
   width: 100%;
   max-width: 430px;
   padding: calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+}
+
+/* The live roast owns the whole phone: the panel and the milestone rail grow
+   into the space instead of leaving the screen half empty below them.
+   46px is the column's own top + bottom padding. */
+.liveFill {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 46px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - 46px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 /* iPad: let home + detail breathe side by side */
