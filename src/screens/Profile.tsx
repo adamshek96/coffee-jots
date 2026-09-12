@@ -86,7 +86,7 @@ export function Profile() {
       <ScreenHeader title="Your profile" onBack={() => set({ screen: "home" })} />
 
       {/* identity */}
-      <div style={{ ...S.card, textAlign: "center" }}>
+      <div style={{ ...S.card, textAlign: "center", animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)" }}>
         <label style={{ cursor: "pointer", display: "inline-block" }}>
           {profile.avatar ? (
             <img
@@ -184,7 +184,7 @@ export function Profile() {
       </div>
 
       {/* journal summary */}
-      <div style={{ ...S.card, marginTop: 12 }}>
+      <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "80ms" }}>
         <div style={{ ...S.sectionLabel, marginBottom: 8 }}>This journal</div>
         {[
           { k: "Roasts logged", v: String(roastCount) },
@@ -211,7 +211,7 @@ export function Profile() {
       </div>
 
       {/* lock */}
-      <div style={{ ...S.card, marginTop: 12 }}>
+      <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "160ms" }}>
         <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Lock this journal</div>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
           There's still no account — this is a lock on your own device, not a login.
@@ -344,7 +344,7 @@ export function Profile() {
 
       {/* backup code */}
       {cfg.mode !== "none" ? (
-        <div style={{ ...S.card, marginTop: 12, border: `1.5px solid ${C.rust}` }}>
+        <div style={{ ...S.card, marginTop: 12, border: `1.5px solid ${C.rust}`, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "240ms" }}>
           <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", color: C.rust, fontWeight: 700 }}>
             BACKUP CODE
           </div>
@@ -379,7 +379,7 @@ export function Profile() {
       ) : null}
 
       {/* honest note about what the lock is */}
-      <div style={{ ...S.card, marginTop: 12, background: "transparent", border: `1px dashed ${C.hair}` }}>
+      <div style={{ ...S.card, marginTop: 12, background: "transparent", border: `1px dashed ${C.hair}`, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "320ms" }}>
         <div style={{ ...S.sectionLabel, marginBottom: 6 }}>What this lock does</div>
         <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
           It stops someone who picks up your phone from opening the journal. It does <strong>not</strong> encrypt your

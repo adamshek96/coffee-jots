@@ -39,6 +39,7 @@ export function NewRoast() {
           justifyContent: "space-between",
           gap: 10,
           cursor: "pointer",
+          animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)",
         }}
       >
         <div>
@@ -49,7 +50,7 @@ export function NewRoast() {
       </div>
 
       {/* bean */}
-      <div style={S.card}>
+      <div style={{ ...S.card, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "80ms" }}>
         <div style={{ ...S.sectionLabel, marginBottom: 10 }}>Bean</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <Chip
@@ -169,7 +170,7 @@ export function NewRoast() {
       </div>
 
       {/* batch number */}
-      <div style={{ ...S.card, marginTop: 12 }}>
+      <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "160ms" }}>
         <div style={{ ...S.sectionLabel, marginBottom: 10 }}>Batch number</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
@@ -276,7 +277,7 @@ export function NewRoast() {
 
       {/* follow a previous batch — optional, for repeating a roast you liked */}
       {priorRoasts.length ? (
-        <div style={{ ...S.card, marginTop: 12 }}>
+        <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "240ms" }}>
           <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Follow a batch</div>
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
             Its milestone times and heat settings show up live as you roast, so you can match them.
@@ -309,7 +310,7 @@ export function NewRoast() {
       ) : null}
 
       {/* green weight */}
-      <div style={{ ...S.card, marginTop: 12 }}>
+      <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "320ms" }}>
         <label style={S.fieldLabel}>Green weight (g)</label>
         <input
           value={st.setupGreen}
@@ -343,7 +344,7 @@ export function NewRoast() {
         onClick={beginRoast}
         disabled={!canBegin}
         className="pressY"
-        style={{ ...S.primaryBtn, marginTop: 14, opacity: canBegin ? 1 : 0.4 }}
+        style={{ ...S.primaryBtn, marginTop: 14, opacity: canBegin ? 1 : 0.4, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "400ms" }}
       >
         Go to roaster →
       </button>

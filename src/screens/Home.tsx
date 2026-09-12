@@ -88,7 +88,7 @@ export function Home() {
     <div>
       <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, animation: "cjSlideDown 500ms cubic-bezier(0.22, 0.61, 0.36, 1)" }}>
           <JotsMark size={34} tile drop />
           {/* The product is always Jots at the top; a roastery name is a
               subtitle, never a replacement for the name. */}
@@ -180,6 +180,7 @@ export function Home() {
             cursor: "pointer",
             textAlign: "left",
             fontFamily: "inherit",
+            animation: "cjSlideUp 500ms cubic-bezier(0.22, 0.61, 0.36, 1)",
           }}
         >
           <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -227,7 +228,7 @@ export function Home() {
       </button>
 
       {st.pendingImport ? (
-        <div style={{ ...S.card, border: `1.5px solid ${C.rust}`, padding: "14px 16px", marginTop: 12 }}>
+        <div style={{ ...S.card, border: `1.5px solid ${C.rust}`, padding: "14px 16px", marginTop: 12, animation: "cjScaleIn 400ms cubic-bezier(0.34, 1.4, 0.5, 1)" }}>
           <div style={{ ...S.sectionLabel, color: C.rust }}>Restore backup?</div>
           <div style={{ fontSize: 13, color: C.ink, marginTop: 6, lineHeight: 1.5 }}>
             This replaces the {roasts.length} roast{roasts.length === 1 ? "" : "s"} on this device with the{" "}
@@ -286,6 +287,7 @@ export function Home() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 10,
+            animation: "cjScaleIn 400ms cubic-bezier(0.34, 1.4, 0.5, 1)",
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -411,6 +413,8 @@ export function Home() {
           justifyContent: "space-between",
           gap: 10,
           cursor: "pointer",
+          animation: "cjIn 400ms cubic-bezier(0.22, 0.61, 0.36, 1)",
+          animationDelay: "280ms",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -433,7 +437,7 @@ export function Home() {
       </div>
 
       {/* journal data */}
-      <div style={{ ...S.card, padding: "14px 16px", marginTop: 12 }}>
+      <div style={{ ...S.card, padding: "14px 16px", marginTop: 12, animation: "cjIn 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "320ms" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0 }}>
             <div style={S.sectionLabel}>Journal data</div>

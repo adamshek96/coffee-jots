@@ -77,6 +77,48 @@ button { touch-action: manipulation; }
   100% { transform: scale(1); }
 }
 
+/* Smooth scale on button press */
+@keyframes cjPress {
+  0% { transform: scale(1); }
+  100% { transform: scale(0.98); }
+}
+
+/* Fade in with slight scale */
+@keyframes cjFadeInScale {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Slide up entrance */
+@keyframes cjSlideUp {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Slide down entrance */
+@keyframes cjSlideDown {
+  0% { opacity: 0; transform: translateY(-12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Scale up entrance */
+@keyframes cjScaleIn {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Pulse highlight */
+@keyframes cjHighlight {
+  0% { background-color: currentColor; }
+  100% { background-color: transparent; }
+}
+
+/* Subtle float */
+@keyframes cjFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
 .cjReveal { animation: cjReveal 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .cjStamp { animation: cjStampIn 460ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
 .cjDot { animation: cjPop 260ms cubic-bezier(0.34, 1.5, 0.5, 1) both; transform-origin: center; }
@@ -84,6 +126,29 @@ button { touch-action: manipulation; }
 .cjIn { animation: cjRise 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .cjLogged { animation: cjLogged 240ms cubic-bezier(0.34, 1.4, 0.5, 1); }
 .cjDrop { animation: cjDrop 620ms cubic-bezier(0.3, 1.2, 0.4, 1) both; }
+.cjFadeInScale { animation: cjFadeInScale 400ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cjSlideUp { animation: cjSlideUp 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cjSlideDown { animation: cjSlideDown 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cjScaleIn { animation: cjScaleIn 300ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.cjFloat { animation: cjFloat 3s ease-in-out infinite; }
+
+/* Smooth transitions for interactive elements */
+button, a, [role="button"] {
+  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease, transform 150ms ease;
+}
+
+input, textarea, select {
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+
+/* Hover states for buttons */
+button:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+
+button:not(:disabled):active {
+  filter: brightness(0.95);
+}
 
 /* Motion is decoration here — never the only signal. Honour the OS setting. */
 @media (prefers-reduced-motion: reduce) {

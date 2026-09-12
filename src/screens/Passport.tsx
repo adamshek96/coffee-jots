@@ -41,7 +41,7 @@ export function Passport() {
         }
       />
 
-      <div style={{ ...S.card, padding: "18px 16px", textAlign: "center" }}>
+      <div style={{ ...S.card, padding: "18px 16px", textAlign: "center", animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)" }}>
         <div style={S.sectionLabel}>Countries collected</div>
         <div style={{ fontFamily: MONO, fontSize: 46, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15 }}>
           {stamps.length}
@@ -91,7 +91,7 @@ export function Passport() {
 
       {/* ghost stamps */}
       {ghosts.length > 0 ? (
-        <div style={{ ...S.card, padding: "18px 14px", marginTop: 12 }}>
+        <div style={{ ...S.card, padding: "18px 14px", marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "200ms" }}>
           <div style={{ ...S.sectionLabel, marginBottom: 6, textAlign: "center" }}>Still to collect</div>
           <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginBottom: 14 }}>
             {st.settings.wishlist.length

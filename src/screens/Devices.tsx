@@ -27,10 +27,10 @@ export function Devices() {
         Each device sets up its own live panel — what it tracks, its controls, its cooling default.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {st.devices.map((d) => {
+        {st.devices.map((d, i) => {
           const active = d.id === st.settings.activeDeviceId;
           return (
-            <div key={d.id} style={{ ...S.card, border: `1.5px solid ${active ? C.olive : C.hair}` }}>
+            <div key={d.id} style={{ ...S.card, border: `1.5px solid ${active ? C.olive : C.hair}`, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: `${i * 80}ms` }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{d.name}</div>
@@ -119,6 +119,8 @@ export function Devices() {
           fontWeight: 600,
           color: C.olive,
           cursor: "pointer",
+          animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)",
+          animationDelay: `${Math.max(st.devices.length, 1) * 80}ms`,
         }}
       >
         + &nbsp;New roaster device

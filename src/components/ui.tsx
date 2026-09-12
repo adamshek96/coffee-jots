@@ -180,6 +180,7 @@ export function DangerAction({
         border: `1.5px solid ${C.rust}`,
         marginTop: 10,
         padding: "14px 16px",
+        animation: "cjScaleIn 300ms cubic-bezier(0.34, 1.4, 0.5, 1)",
       }}
       role="alertdialog"
     >
@@ -244,6 +245,7 @@ export function Toast({ msg }: { msg: string }) {
         borderRadius: 999,
         zIndex: 99,
         whiteSpace: "nowrap",
+        animation: "cjSlideUp 300ms cubic-bezier(0.22, 0.61, 0.36, 1)",
       }}
     >
       {msg}
