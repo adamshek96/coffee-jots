@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
-import { fmt, fmtSigned, lossPct } from "../lib/calc";
+import { devPct, devWindow, fmt, fmtSigned, lossPct } from "../lib/calc";
 import { C, KEYS, LEVELS, MONO, MS, PHASE, SHADES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -28,6 +28,8 @@ export function RoastDetail() {
   let shadeSegs: { left: string; w: string; c: string }[] = [];
   let yTicks: { topPct: string; label: string }[] = [];
   let phaseRects: { left: string; w: string; fill: string }[] = [];
+  let easeLeft: string | null = null;
+  const dw = devWindow(r);
 
   const cmpR = st.compareId ? st.roasts.find((x) => x.id === st.compareId) : null;
 
@@ -52,6 +54,7 @@ export function RoastDetail() {
       browning: "BR",
       fc: "FC",
       fcEnds: "FE",
+      extend: "EA",
       cooling: "CO",
       drop: "DR",
     };
@@ -118,23 +121,17 @@ export function RoastDetail() {
     if (ev.yellowing) rects.push({ left: X(0), w: X(ev.yellowing.t) - X(0), fill: PHASE.drying + "2E" });
     if (ev.yellowing && ev.fc)
       rects.push({ left: X(ev.yellowing.t), w: X(ev.fc.t) - X(ev.yellowing.t), fill: PHASE.maillard + "2E" });
-    if (ev.fc && dropT) {
-      const devEnd = ev.extend ? ev.extend.t : dropT;
-      rects.push({ left: X(ev.fc.t), w: X(devEnd) - X(ev.fc.t), fill: PHASE.development + "2E" });
-      if (ev.extend) rects.push({ left: X(ev.extend.t), w: X(dropT) - X(ev.extend.t), fill: PHASE.extended + "2E" });
-    }
+    if (dw) rects.push({ left: X(dw.start), w: X(dw.end) - X(dw.start), fill: PHASE.development + "2E" });
+    // Easing the heat is a moment inside development, not a wall at the end of
+    // it, so it reads as a line drawn across the band rather than a new colour.
+    if (dw?.ease != null) easeLeft = X(dw.ease).toFixed(2);
     phaseRects = rects.map((x) => ({ left: x.left.toFixed(2), w: x.w.toFixed(2), fill: x.fill }));
   }
 
   const phases: { key: string; label: string; d: number }[] = [];
   if (ev.yellowing) phases.push({ key: "drying", label: "Drying", d: ev.yellowing.t });
   if (ev.yellowing && ev.fc) phases.push({ key: "maillard", label: "Maillard", d: ev.fc.t - ev.yellowing.t });
-  if (ev.fc && dropT) {
-    // An Extend tap splits development into the normal window and the held tail.
-    const devEnd = ev.extend ? ev.extend.t : dropT;
-    phases.push({ key: "development", label: "Development", d: devEnd - ev.fc.t });
-    if (ev.extend) phases.push({ key: "extended", label: "Extended", d: dropT - ev.extend.t });
-  }
+  if (dw) phases.push({ key: "development", label: "Development", d: dw.seconds });
   const pTotal = phases.reduce((x, p) => x + p.d, 0) || 1;
 
   const sumRows: { k: string; v: string }[] = [
@@ -157,9 +154,8 @@ export function RoastDetail() {
 
   const sibs = st.roasts.filter((x) => x.beanName === r.beanName && x.id !== r.id && x.events && x.events.drop);
   const devPctOf = (x: typeof r) => {
-    const e = x.events || {};
-    const dt = e.drop ? e.drop.t : x.durationSec;
-    return e.fc && dt ? Math.round(((dt - e.fc.t) / dt) * 100) + "%" : "—";
+    const p = devPct(x);
+    return p != null ? p + "%" : "—";
   };
   const lossOf = (x: typeof r) => {
     const l = lossPct(x);
@@ -341,6 +337,19 @@ export function RoastDetail() {
                     }}
                   />
                 ))}
+                {easeLeft ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      left: easeLeft + "%",
+                      width: 0,
+                      borderLeft: `1.5px dashed ${PHASE.extended}`,
+                      opacity: 0.75,
+                    }}
+                  />
+                ) : null}
                 {/* the reveal lives on a wrapper so the stroke itself is untouched */}
                 <div className="cjReveal" style={{ position: "absolute", inset: 0 }}>
                   <svg
@@ -503,6 +512,28 @@ export function RoastDetail() {
               </div>
             ))}
           </div>
+          {dw?.ease != null ? (
+            <div
+              style={{
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: `1px solid ${C.hair}`,
+                display: "flex",
+                alignItems: "baseline",
+                gap: 8,
+                fontSize: 12,
+                color: C.muted,
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ width: 14, borderTop: `1.5px dashed ${PHASE.extended}`, flexShrink: 0, alignSelf: "center" }} />
+              <span>
+                Heat eased at <span style={{ fontFamily: MONO, color: C.ink }}>{fmt(dw.ease)}</span> —{" "}
+                {fmt(dw.ease - dw.start)} into development, {fmt(dw.end - dw.ease)} still to run. Still development
+                either way; the ease is how you got there.
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -82,7 +82,9 @@ export function LiveRoast() {
 
   let phase: string | null = null;
   if (a.startedAt && !dropped) {
-    phase = ev.extend ? "extended" : ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
+    // Extend doesn't end development — it's where the heat was eased to stop
+    // the beans running away, and they carry on developing after it.
+    phase = ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
   }
 
   const G = st.ghostOn && a.ghost ? a.ghost : null;
@@ -115,7 +117,9 @@ export function LiveRoast() {
     if (dropped) return true;
     if (k === "preheat") return !!a.startedAt;
     if (k === "charge") return false;
-    if (k === "extend") return !ev.fcEnds;
+    // Available from first crack, not from the end of it: easing the heat is
+    // something you do while the cracking is still going.
+    if (k === "extend") return !ev.fc;
     return !a.startedAt;
   };
   const nextKey = MS.find((m) => !ev[m.key] && !isLocked(m.key))?.key;
@@ -437,10 +441,19 @@ export function LiveRoast() {
           ) : null}
 
           <div style={{ display: "flex", alignItems: "center", gap: 5, margin: "12px 2px 0" }}>
-            {(["drying", "maillard", "development", "extended"] as const).map((p) => (
+            {(["drying", "maillard", "development"] as const).map((p) => (
               <div
                 key={p}
-                style={{ flex: 1, height: 5, borderRadius: 3, background: PHASE[p], opacity: phase === p ? 1 : 0.22 }}
+                style={{
+                  flex: 1,
+                  height: 5,
+                  borderRadius: 3,
+                  background: PHASE[p],
+                  opacity: phase === p ? 1 : 0.22,
+                  // Once the heat has been eased, the development leg carries a
+                  // notch rather than handing over to a phase of its own.
+                  borderRight: p === "development" && ev.extend ? `2px solid ${PHASE.extended}` : undefined,
+                }}
               />
             ))}
             <div
@@ -453,7 +466,15 @@ export function LiveRoast() {
                 whiteSpace: "nowrap",
               }}
             >
-              {dropped ? "DONE" : cooling ? "COOLING" : a.status === "preheating" ? "PREHEAT" : phase ? phase.toUpperCase() : "STANDBY"}
+              {dropped
+                ? "DONE"
+                : cooling
+                  ? "COOLING"
+                  : a.status === "preheating"
+                    ? "PREHEAT"
+                    : phase
+                      ? phase.toUpperCase() + (phase === "development" && ev.extend ? " · EASED" : "")
+                      : "STANDBY"}
             </div>
           </div>
 

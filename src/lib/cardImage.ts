@@ -1,4 +1,4 @@
-import { curveFor, fmt, lossPct, originStamps, stampify } from "./calc";
+import { curveFor, devPct, fmt, lossPct, originStamps, stampify } from "./calc";
 import type { StampSpec } from "./calc";
 import { C, LEVELS } from "./constants";
 import type { Roast } from "../types";
@@ -127,7 +127,7 @@ export async function renderRoastCard(r: Roast, originCount: number): Promise<Bl
   const P = 66; // padding
   const ev = r.events || {};
   const drop = ev.drop ? ev.drop.t : r.durationSec || 0;
-  const dev = ev.fc && drop ? Math.round(((drop - ev.fc.t) / drop) * 100) : null;
+  const dev = devPct(r);
   const loss = lossPct(r);
   const LV = LEVELS.find((x) => x.name === r.roastLevel);
   const cg = curveFor(r);

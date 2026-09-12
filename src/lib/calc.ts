@@ -242,3 +242,168 @@ export const lossPct = (r: { greenWeight?: number; roastedWeight?: number | null
   typeof r.roastedWeight === "number" && r.greenWeight
     ? ((r.greenWeight - r.roastedWeight) / r.greenWeight) * 100
     : null;
+
+interface RoastLike {
+  events?: EventMap;
+  durationSec?: number;
+}
+
+/**
+ * When the heat came off: Cooling if it was tapped, otherwise the Drop.
+ *
+ * Everything after this point is the beans coasting in a cold machine, which
+ * is why it — not the Drop — is what the phases are measured against. Measured
+ * this way drying, maillard and development account for the whole roast.
+ */
+export function heatOffAt(r: RoastLike): number {
+  const ev = r.events || {};
+  const total = ev.drop ? ev.drop.t : r.durationSec || 0;
+  return ev.cooling ? ev.cooling.t : total;
+}
+
+export interface DevWindow {
+  /** First crack. */
+  start: number;
+  /** Heat off — see heatOffAt. */
+  end: number;
+  /** The point inside the window where the heat was eased, if it was. */
+  ease: number | null;
+  seconds: number;
+  /** Share of the heated roast spent developing, 0–1. */
+  ratio: number;
+}
+
+/**
+ * Development: first crack until the heat comes off.
+ *
+ * Extend is deliberately not a boundary. It marks where the heat was eased
+ * part-way through to stop the beans running away — a variation in how you
+ * develop, not the end of developing. Splitting the window there would report
+ * two short phases where there is one long one, and would make a roast look
+ * under-developed precisely because it was handled carefully.
+ *
+ * This is the single definition; every development figure in the app reads it,
+ * so the number on a share card can't drift from the one on the curve.
+ */
+export function devWindow(r: RoastLike): DevWindow | null {
+  const ev = r.events || {};
+  if (!ev.fc) return null;
+  const end = heatOffAt(r);
+  if (!end || end <= ev.fc.t) return null;
+  return {
+    start: ev.fc.t,
+    end,
+    ease: ev.extend ? ev.extend.t : null,
+    seconds: end - ev.fc.t,
+    ratio: (end - ev.fc.t) / end,
+  };
+}
+
+/** Development as a whole-number percent, the figure shown on cards. */
+export const devPct = (r: RoastLike): number | null => {
+  const d = devWindow(r);
+  return d ? Math.round(d.ratio * 100) : null;
+};
+
+export interface StackedCurve {
+  id: string;
+  label: string;
+  path: string;
+  fc: { x: string; y: string } | null;
+  /** 0 = four stars or better, 1 = rated below that, 2 = never rated. */
+  band: 0 | 1 | 2;
+}
+
+export interface StackedGeom {
+  curves: StackedCurve[];
+  unit: string;
+  yTicks: { topPct: string; label: string }[];
+  xTicks: { leftPct: string; label: string }[];
+  /** Where t=0 falls — first crack when aligned, otherwise charge. */
+  originPct: string;
+  /** Roasts left out: too few points, wrong unit, or no first crack to align on. */
+  skipped: number;
+}
+
+/** Roughly four to six gridlines, on a step that reads as a round time. */
+const niceStep = (span: number): number => [30, 60, 120, 180, 300, 600, 900].find((s) => span / s <= 6) || 1800;
+
+/**
+ * Every roast's curve on one pair of axes.
+ *
+ * `alignFc` slides each curve so first crack sits at zero. Left as logged, the
+ * curves fan out by however long each roast took to get going, which buries the
+ * thing worth comparing; aligned, the development tails stack up against each
+ * other and the shape of a good roast is actually visible.
+ */
+export function stackedCurves(roasts: Roast[], alignFc: boolean): StackedGeom | null {
+  // Watts and °F on one axis would be meaningless, so the chart speaks whichever
+  // unit most of the journal is in and reports how many roasts that left out.
+  const tally: Record<string, number> = {};
+  roasts.forEach((r) => {
+    const u = r.unit || "W";
+    tally[u] = (tally[u] || 0) + 1;
+  });
+  const unit = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+  if (!unit) return null;
+
+  const prepped: { r: Roast; pts: { t: number; w: number }[]; fcT: number | null }[] = [];
+  let skipped = 0;
+  roasts.forEach((r) => {
+    const ev = r.events || {};
+    // Stop just short of heat-off. Cooling and the drop carry the machine's
+    // cooled-down reading rather than anything you roasted with, and letting
+    // them into the range squashes every curve into the top of the chart to
+    // make room for a cliff that says nothing about the trajectory.
+    const stop = heatOffAt(r);
+    const pts = KEYS.filter((k) => ev[k] && ev[k]!.t < stop).map((k) => ({ t: ev[k]!.t, w: ev[k]!.watts }));
+    const fcT = ev.fc ? ev.fc.t : null;
+    if ((r.unit || "W") !== unit || pts.length < 2 || (alignFc && fcT == null)) {
+      skipped++;
+      return;
+    }
+    const off = alignFc ? fcT! : 0;
+    prepped.push({ r, pts: pts.map((p) => ({ t: p.t - off, w: p.w })), fcT: fcT == null ? null : fcT - off });
+  });
+  if (!prepped.length) return null;
+
+  const allT = prepped.flatMap((p) => p.pts.map((x) => x.t));
+  const allW = prepped.flatMap((p) => p.pts.map((x) => x.w));
+  const minT = Math.min(...allT);
+  const maxT = Math.max(...allT);
+  const spanT = maxT - minT || 1;
+  let lo = Math.min(...allW);
+  let hi = Math.max(...allW);
+  const span = Math.max(40, hi - lo);
+  // Neither watts nor a bean-probe reading can go below zero, so the axis doesn't.
+  lo = Math.max(0, Math.floor((lo - span * 0.1) / 10) * 10);
+  hi = Math.ceil((hi + span * 0.1) / 10) * 10;
+  const X = (t: number) => 4 + ((t - minT) / spanT) * 92;
+  const Y = (w: number) => 8 + (1 - (w - lo) / (hi - lo)) * 84;
+
+  const curves: StackedCurve[] = prepped.map(({ r, pts, fcT }) => ({
+    id: r.id,
+    label: r.beanName + " #" + (r.batch || 1),
+    path: pts.map((p, i) => (i ? "L" : "M") + X(p.t).toFixed(2) + "," + Y(p.w).toFixed(2)).join(" "),
+    fc: fcT == null ? null : { x: X(fcT).toFixed(2), y: Y(r.events!.fc!.watts).toFixed(2) },
+    band: !r.rating ? 2 : r.rating >= 4 ? 0 : 1,
+  }));
+  // Best-rated last so they land on top of the pile rather than under it.
+  curves.sort((a, b) => b.band - a.band);
+
+  const mid = Math.round((lo + hi) / 2 / 10) * 10;
+  const step = niceStep(spanT);
+  const xTicks: StackedGeom["xTicks"] = [];
+  for (let t = Math.ceil(minT / step) * step; t <= maxT; t += step) {
+    xTicks.push({ leftPct: X(t).toFixed(2), label: fmtSigned(t) });
+  }
+
+  return {
+    curves,
+    unit,
+    yTicks: [hi, mid, lo].map((w) => ({ topPct: Y(w).toFixed(2), label: String(w) })),
+    xTicks,
+    originPct: X(0).toFixed(2),
+    skipped,
+  };
+}

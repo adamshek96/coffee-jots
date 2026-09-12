@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Stamp } from "../components/Stamp";
 import { S, ScreenHeader } from "../components/ui";
-import { curveFor, fmt, lossPct, originStamps, stampify } from "../lib/calc";
+import { curveFor, devPct, fmt, lossPct, originStamps, stampify } from "../lib/calc";
 import { deliverImage, renderPassportPoster, renderRoastCard } from "../lib/cardImage";
 import { C, LEVELS, MONO } from "../lib/constants";
 import { useStore } from "../store";
@@ -35,7 +35,7 @@ export function Share() {
   if (isR && r) {
     const ev = r.events || {};
     const drop = ev.drop ? ev.drop.t : r.durationSec || 0;
-    const dev = ev.fc && drop ? Math.round(((drop - ev.fc.t) / drop) * 100) : null;
+    const dev = devPct(r);
     const loss = lossPct(r);
     const LV = LEVELS.find((x) => x.name === r.roastLevel);
     const cg = curveFor(r);

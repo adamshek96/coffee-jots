@@ -1,12 +1,22 @@
+import { useState } from "react";
 import { StaticWheel } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
-import { avg, fmt, lossPct } from "../lib/calc";
+import { avg, devPct, devWindow, fmt, lossPct, stackedCurves } from "../lib/calc";
 import { C, FAMILIES, LEVELS, MONO, PHASE } from "../lib/constants";
 import { useStore } from "../store";
+
+/** How a curve is drawn depends on how the cup turned out. */
+const BANDS = [
+  { c: C.rust, w: 2.2, op: 1, label: "4★ and up" },
+  { c: C.olive, w: 1.6, op: 0.8, label: "Rated lower" },
+  { c: C.faint, w: 1.2, op: 0.5, label: "Not rated" },
+] as const;
 
 export function Analytics() {
   const { st, set } = useStore();
   const R = st.roasts;
+  const [alignFc, setAlignFc] = useState(false);
+  const stack = stackedCurves(R, alignFc);
 
   // roasts per month, last 6
   const mo: { y: number; m: number; label: string; n: number }[] = [];
@@ -53,15 +63,16 @@ export function Analytics() {
   });
   const rcMax = Math.max(1, ...rc);
 
-  // phase balance
+  // phase balance — measured against the heated roast, so the three account
+  // for all of it rather than leaving the cooling coast unaccounted for.
   const fr: Record<string, number[]> = { drying: [], maillard: [], development: [] };
   R.forEach((r) => {
     const e = r.events || {};
-    const drop = e.drop ? e.drop.t : r.durationSec;
-    if (!e.yellowing || !e.fc || !drop) return;
-    fr.drying.push(e.yellowing.t / drop);
-    fr.maillard.push((e.fc.t - e.yellowing.t) / drop);
-    fr.development.push((drop - e.fc.t) / drop);
+    const dw = devWindow(r);
+    if (!e.yellowing || !dw) return;
+    fr.drying.push(e.yellowing.t / dw.end);
+    fr.maillard.push((e.fc!.t - e.yellowing.t) / dw.end);
+    fr.development.push(dw.ratio);
   });
 
   // averaged flavor wheel
@@ -84,20 +95,11 @@ export function Analytics() {
   // insights
   const top = R.filter((r) => (r.rating || 0) >= 4);
   const rest = R.filter((r) => r.rating && r.rating < 4);
-  const devPct = (arr: typeof R) =>
-    avg(
-      arr
-        .map((r) => {
-          const e = r.events || {};
-          const drop = e.drop ? e.drop.t : r.durationSec;
-          return e.fc && drop ? ((drop - e.fc.t) / drop) * 100 : null;
-        })
-        .filter((x): x is number => x != null),
-    );
+  const meanDev = (arr: typeof R) => avg(arr.map(devPct).filter((x): x is number => x != null));
   const insights: { k: string; v: string }[] = [];
   if (top.length && rest.length) {
-    const a1 = devPct(top);
-    const a2 = devPct(rest);
+    const a1 = meanDev(top);
+    const a2 = meanDev(rest);
     if (a1 != null && a2 != null)
       insights.push({
         k: "Development window",
@@ -171,6 +173,169 @@ export function Analytics() {
           ))}
         </div>
       </div>
+
+      {/* every curve, one on top of another */}
+      {stack && stack.curves.length > 1 ? (
+        <div style={{ ...S.card, marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+            <div style={S.sectionLabel}>Every curve, stacked</div>
+            <div style={{ display: "flex", flexShrink: 0, borderRadius: 999, border: `1px solid ${C.hair}`, overflow: "hidden" }}>
+              {([false, true] as const).map((v) => (
+                <button
+                  key={String(v)}
+                  onClick={() => setAlignFc(v)}
+                  style={{
+                    border: "none",
+                    padding: "6px 11px",
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    letterSpacing: "0.08em",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    background: alignFc === v ? C.olive : "transparent",
+                    color: alignFc === v ? C.cream : C.muted,
+                  }}
+                >
+                  {v ? "AT FC" : "FROM CHARGE"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, margin: "4px 0 12px", lineHeight: 1.5 }}>
+            {alignFc
+              ? "Lined up at first crack, so the development tails sit against each other."
+              : "As logged, from the moment the beans went in."}{" "}
+            Each run ends where the heat came off.
+          </div>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ width: 28, position: "relative", flexShrink: 0 }}>
+              {stack.yTicks.map((t) => (
+                <div
+                  key={t.label}
+                  style={{
+                    position: "absolute",
+                    top: t.topPct + "%",
+                    right: 0,
+                    transform: "translateY(-50%)",
+                    fontFamily: MONO,
+                    fontSize: 9,
+                    color: C.faint,
+                  }}
+                >
+                  {t.label}
+                </div>
+              ))}
+            </div>
+            <div
+              style={{
+                flex: 1,
+                position: "relative",
+                height: 200,
+                border: `1px solid ${C.hair}`,
+                borderRadius: 6,
+                backgroundColor: C.paperLight,
+                overflow: "hidden",
+              }}
+            >
+              {stack.xTicks.map((t) => (
+                <div
+                  key={t.label}
+                  style={{ position: "absolute", top: 0, bottom: 0, left: t.leftPct + "%", borderLeft: `1px solid rgba(183,175,159,0.45)` }}
+                />
+              ))}
+              {/* first crack when aligned, charge otherwise — the line every
+                  curve is being read against */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: stack.originPct + "%",
+                  borderLeft: `1.5px ${alignFc ? "solid" : "dashed"} ${alignFc ? C.rust : C.hair}`,
+                  opacity: alignFc ? 0.65 : 1,
+                }}
+              />
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+              >
+                {stack.curves.map((c) => (
+                  <path
+                    key={c.id}
+                    d={c.path}
+                    style={{
+                      fill: "none",
+                      stroke: BANDS[c.band].c,
+                      strokeWidth: BANDS[c.band].w,
+                      strokeOpacity: BANDS[c.band].op,
+                      strokeLinejoin: "round",
+                      strokeLinecap: "round",
+                      vectorEffect: "non-scaling-stroke",
+                    }}
+                  />
+                ))}
+              </svg>
+              {stack.curves.map((c) =>
+                c.fc ? (
+                  <span
+                    key={c.id}
+                    title={c.label}
+                    style={{
+                      position: "absolute",
+                      left: c.fc.x + "%",
+                      top: c.fc.y + "%",
+                      transform: "translate(-50%,-50%)",
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      background: BANDS[c.band].c,
+                      opacity: BANDS[c.band].op,
+                    }}
+                  />
+                ) : null,
+              )}
+            </div>
+          </div>
+
+          <div style={{ position: "relative", height: 13, marginLeft: 34, marginTop: 4 }}>
+            {stack.xTicks.map((t) => (
+              <div
+                key={t.label}
+                style={{
+                  position: "absolute",
+                  left: t.leftPct + "%",
+                  transform: "translateX(-50%)",
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: C.faint,
+                }}
+              >
+                {t.label}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 10 }}>
+            {BANDS.map((b) => (
+              <span key={b.label} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink }}>
+                <span style={{ width: 14, height: 0, borderTop: `2px solid ${b.c}`, opacity: b.op }} />
+                {b.label}
+              </span>
+            ))}
+            <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.muted }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.muted }} />
+              first crack
+            </span>
+          </div>
+
+          <div style={{ ...S.mono9, marginTop: 8 }}>
+            {stack.curves.length} roasts in {stack.unit}
+            {stack.skipped ? " · " + stack.skipped + " left out (different unit, or too little logged)" : ""}
+          </div>
+        </div>
+      ) : null}
 
       {/* average phase balance */}
       {fr.drying.length > 0 ? (
