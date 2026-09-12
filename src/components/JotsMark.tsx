@@ -30,7 +30,18 @@ export function JotsMark({
       viewBox="0 0 128 128"
       width={size}
       height={size}
-      style={{ display: "block", flexShrink: 0 }}
+      style={{
+        display: "block",
+        flexShrink: 0,
+        animation: "cjSpinIn 600ms cubic-bezier(0.34, 1.4, 0.5, 1) both",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.animation = "cjTilt 400ms ease-in-out";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.animation = "cjSpinIn 600ms cubic-bezier(0.34, 1.4, 0.5, 1) both";
+      }}
       role="img"
       aria-label="Jots"
     >
