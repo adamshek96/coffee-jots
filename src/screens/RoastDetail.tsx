@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
-import { devPct, devWindow, fmt, fmtSigned, lossPct } from "../lib/calc";
+import { devPct, devWindow, fmt, fmtSigned, heatChangeVerb, lossPct } from "../lib/calc";
 import { C, KEYS, LEVELS, MONO, MS, PHASE, SHADES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -54,7 +54,7 @@ export function RoastDetail() {
       browning: "BR",
       fc: "FC",
       fcEnds: "FE",
-      extend: "EA",
+      extend: "HC",
       cooling: "CO",
       drop: "DR",
     };
@@ -122,9 +122,9 @@ export function RoastDetail() {
     if (ev.yellowing && ev.fc)
       rects.push({ left: X(ev.yellowing.t), w: X(ev.fc.t) - X(ev.yellowing.t), fill: PHASE.maillard + "2E" });
     if (dw) rects.push({ left: X(dw.start), w: X(dw.end) - X(dw.start), fill: PHASE.development + "2E" });
-    // Easing the heat is a moment inside development, not a wall at the end of
+    // Moving the heat is a moment inside development, not a wall at the end of
     // it, so it reads as a line drawn across the band rather than a new colour.
-    if (dw?.ease != null) easeLeft = X(dw.ease).toFixed(2);
+    if (dw?.heatChange) easeLeft = X(dw.heatChange.t).toFixed(2);
     phaseRects = rects.map((x) => ({ left: x.left.toFixed(2), w: x.w.toFixed(2), fill: x.fill }));
   }
 
@@ -512,7 +512,7 @@ export function RoastDetail() {
               </div>
             ))}
           </div>
-          {dw?.ease != null ? (
+          {dw?.heatChange ? (
             <div
               style={{
                 marginTop: 10,
@@ -528,9 +528,10 @@ export function RoastDetail() {
             >
               <span style={{ width: 14, borderTop: `1.5px dashed ${PHASE.extended}`, flexShrink: 0, alignSelf: "center" }} />
               <span>
-                Heat eased at <span style={{ fontFamily: MONO, color: C.ink }}>{fmt(dw.ease)}</span> —{" "}
-                {fmt(dw.ease - dw.start)} into development, {fmt(dw.end - dw.ease)} still to run. Still development
-                either way; the ease is how you got there.
+                Heat {heatChangeVerb(dw.heatChange.dir)} at{" "}
+                <span style={{ fontFamily: MONO, color: C.ink }}>{fmt(dw.heatChange.t)}</span> —{" "}
+                {fmt(dw.heatChange.t - dw.start)} into development, {fmt(dw.end - dw.heatChange.t)} still to run.
+                Development either side of it; the change is how you steered it.
               </span>
             </div>
           ) : null}

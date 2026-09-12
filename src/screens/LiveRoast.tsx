@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { FLIP, FlipReadout } from "../components/FlipReadout";
 import { MilestoneSheet } from "../components/MilestoneSheet";
 import { DangerAction, S } from "../components/ui";
-import { fmt, fmtSigned, ramp } from "../lib/calc";
+import { devWindow, fmt, fmtSigned, heatChangeVerb, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
 import { haptic } from "../lib/haptics";
 import { keepAwake } from "../lib/wakeLock";
@@ -82,10 +82,11 @@ export function LiveRoast() {
 
   let phase: string | null = null;
   if (a.startedAt && !dropped) {
-    // Extend doesn't end development — it's where the heat was eased to stop
-    // the beans running away, and they carry on developing after it.
+    // A heat change doesn't end development — it's a course correction inside
+    // it, and the beans carry on developing either side.
     phase = ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
   }
+  const devChange = phase === "development" && ev.extend ? devWindow({ events: ev, durationSec: roastT })?.heatChange : null;
 
   const G = st.ghostOn && a.ghost ? a.ghost : null;
   const delta = (s: number) => (s >= 0 ? "+" : "−") + fmt(Math.abs(s));
@@ -117,8 +118,8 @@ export function LiveRoast() {
     if (dropped) return true;
     if (k === "preheat") return !!a.startedAt;
     if (k === "charge") return false;
-    // Available from first crack, not from the end of it: easing the heat is
-    // something you do while the cracking is still going.
+    // Available from first crack, not from the end of it: you reach for the
+    // dial while the cracking is still going.
     if (k === "extend") return !ev.fc;
     return !a.startedAt;
   };
@@ -473,7 +474,7 @@ export function LiveRoast() {
                   : a.status === "preheating"
                     ? "PREHEAT"
                     : phase
-                      ? phase.toUpperCase() + (phase === "development" && ev.extend ? " · EASED" : "")
+                      ? phase.toUpperCase() + (devChange ? " · " + heatChangeVerb(devChange.dir).toUpperCase() : "")
                       : "STANDBY"}
             </div>
           </div>

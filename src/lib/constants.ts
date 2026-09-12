@@ -121,7 +121,7 @@ export const MS: { key: MilestoneKey; label: string; hint: string }[] = [
   { key: "browning", label: "Browning", hint: "maillard, smells bready" },
   { key: "fc", label: "First Crack", hint: "first snaps" },
   { key: "fcEnds", label: "FC Ends", hint: "cracking slows" },
-  { key: "extend", label: "Ease Heat", hint: "optional — backed off so they don't run away" },
+  { key: "extend", label: "Heat Change", hint: "optional — moved the heat, up or down" },
   { key: "cooling", label: "Cooling", hint: "heat off, fan high, coasting" },
   { key: "drop", label: "Drop", hint: "ends the roast, stops the clock" },
 ];

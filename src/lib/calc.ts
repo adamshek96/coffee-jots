@@ -266,8 +266,11 @@ export interface DevWindow {
   start: number;
   /** Heat off — see heatOffAt. */
   end: number;
-  /** The point inside the window where the heat was eased, if it was. */
-  ease: number | null;
+  /**
+   * Where the heat was changed inside the window, if it was, and which way it
+   * went: -1 down, 1 up, 0 when only the fan moved or nothing did.
+   */
+  heatChange: { t: number; dir: -1 | 0 | 1 } | null;
   seconds: number;
   /** Share of the heated roast spent developing, 0–1. */
   ratio: number;
@@ -276,11 +279,12 @@ export interface DevWindow {
 /**
  * Development: first crack until the heat comes off.
  *
- * Extend is deliberately not a boundary. It marks where the heat was eased
- * part-way through to stop the beans running away — a variation in how you
- * develop, not the end of developing. Splitting the window there would report
- * two short phases where there is one long one, and would make a roast look
- * under-developed precisely because it was handled carefully.
+ * The heat-change mark is deliberately not a boundary. It records that the
+ * heat moved part-way through — down to stop the beans running away, up to
+ * drive them on — which is a variation in how you develop, not the end of
+ * developing. Splitting the window there would report two short phases where
+ * there is one long one, and would make a steered roast look under-developed
+ * precisely because it was steered.
  *
  * This is the single definition; every development figure in the app reads it,
  * so the number on a share card can't drift from the one on the curve.
@@ -290,14 +294,38 @@ export function devWindow(r: RoastLike): DevWindow | null {
   if (!ev.fc) return null;
   const end = heatOffAt(r);
   if (!end || end <= ev.fc.t) return null;
+
+  let heatChange: DevWindow["heatChange"] = null;
+  const ex = ev.extend;
+  if (ex) {
+    // Compare against whatever was in force just before the tap, which is the
+    // previous milestone — usually first crack, but FC Ends if the change came
+    // after it. The dial is the truer signal where the machine has one; the
+    // meter only follows it.
+    const before = KEYS.filter((k) => ev[k] && ev[k]!.t < ex.t)
+      .map((k) => ev[k]!)
+      .sort((a, b) => a.t - b.t)
+      .pop();
+    let dir: -1 | 0 | 1 = 0;
+    if (before) {
+      if (before.dial != null && ex.dial != null && ex.dial !== before.dial) dir = ex.dial > before.dial ? 1 : -1;
+      else if (ex.watts !== before.watts) dir = ex.watts > before.watts ? 1 : -1;
+    }
+    heatChange = { t: ex.t, dir };
+  }
+
   return {
     start: ev.fc.t,
     end,
-    ease: ev.extend ? ev.extend.t : null,
+    heatChange,
     seconds: end - ev.fc.t,
     ratio: (end - ev.fc.t) / end,
   };
 }
+
+/** "eased" / "raised" / "changed", from which way the heat actually went. */
+export const heatChangeVerb = (dir: -1 | 0 | 1): string =>
+  dir < 0 ? "eased" : dir > 0 ? "raised" : "changed";
 
 /** Development as a whole-number percent, the figure shown on cards. */
 export const devPct = (r: RoastLike): number | null => {
