@@ -133,6 +133,20 @@ button { touch-action: manipulation; }
   75% { transform: rotateZ(2deg); }
 }
 
+/* Wild wobble/shake for loading */
+@keyframes cjWobble {
+  0%, 100% { transform: rotateZ(0deg) scale(1); }
+  10% { transform: rotateZ(-8deg) scale(1.05); }
+  20% { transform: rotateZ(6deg) scale(0.98); }
+  30% { transform: rotateZ(-7deg) scale(1.04); }
+  40% { transform: rotateZ(5deg) scale(0.99); }
+  50% { transform: rotateZ(-6deg) scale(1.03); }
+  60% { transform: rotateZ(4deg) scale(1); }
+  70% { transform: rotateZ(-3deg) scale(1.02); }
+  80% { transform: rotateZ(2deg) scale(1); }
+  90% { transform: rotateZ(-1deg) scale(1.01); }
+}
+
 /* Logo spin entrance */
 @keyframes cjSpinIn {
   0% { opacity: 0; transform: scale(0.8) rotateZ(-15deg); }

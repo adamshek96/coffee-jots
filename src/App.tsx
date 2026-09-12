@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SCREENS } from "./screens";
 import { LockScreen } from "./components/LockScreen";
 import { Toast } from "./components/ui";
+import { JotsMark } from "./components/JotsMark";
 import { C } from "./lib/constants";
 import { useStore } from "./store";
 import type { Screen } from "./store";
@@ -21,7 +22,29 @@ export function App() {
   const { st } = useStore();
   const wide = useWide();
 
-  if (!st.loaded) return <div className="appShell" />;
+  if (!st.loaded)
+    return (
+      <div
+        className="appShell"
+        style={{
+          background: C.olive,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              animation: "cjWobble 800ms ease-in-out",
+              display: "inline-block",
+            }}
+          >
+            <JotsMark size={80} tile color={C.cream} ground={C.olive} />
+          </div>
+        </div>
+      </div>
+    );
   if (st.locked)
     return (
       <>
