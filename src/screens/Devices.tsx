@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { ClayObject } from "../components/ClayObject";
 import { S, ScreenHeader } from "../components/ui";
+import { buildPopper, POPPER_PARTS } from "../lib/models/popper";
+import type { PopperPart } from "../lib/models/popper";
 import { fmt } from "../lib/calc";
 import { C, FANS, METRICS, MONO } from "../lib/constants";
 import { useStore } from "../store";
@@ -15,6 +19,38 @@ function devSummary(d: Device): { k: string; v: string }[] {
   ];
 }
 
+/**
+ * The machine itself, at the top of its own screen. Turning it over is the
+ * point — the parts are tappable, and each one answers with what Jots actually
+ * records from it, so the object doubles as the explanation of the rail.
+ */
+function PopperHero() {
+  const [part, setPart] = useState<PopperPart>("body");
+  const info = POPPER_PARTS[part];
+  return (
+    <div style={{ ...S.card, padding: "6px 14px 14px", marginBottom: 14 }}>
+      <ClayObject
+        build={buildPopper}
+        reach={1.5}
+        lift={0.74}
+        height={240}
+        shadow={[1.5, 1.3]}
+        label="The popper roaster, in three dimensions — drag to turn it, tap a part to read what it does"
+        onPartTap={(p) => setPart(p as PopperPart)}
+      />
+      <div style={{ borderTop: `1px solid ${C.hair}`, paddingTop: 11, marginTop: 4 }}>
+        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: C.olive, fontWeight: 700 }}>
+          {info.title.toUpperCase()}
+        </div>
+        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginTop: 4 }}>{info.body}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.faint, marginTop: 8, letterSpacing: "0.06em" }}>
+          DRAG TO TURN · TAP A PART
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Devices() {
   const { st, set, useDevice } = useStore();
 
@@ -26,6 +62,9 @@ export function Devices() {
       <div style={{ fontSize: 13, color: C.muted, margin: "0 0 14px 52px" }}>
         Each device sets up its own live panel — what it tracks, its controls, its cooling default.
       </div>
+
+      <PopperHero />
+
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {st.devices.map((d, i) => {
           const active = d.id === st.settings.activeDeviceId;

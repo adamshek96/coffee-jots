@@ -29,5 +29,19 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        /**
+         * three.js gets its own chunk. It loads on every launch either way, but
+         * kept separate its hash only changes when three itself does — so an
+         * installed journal re-downloads the app code on a deploy and keeps the
+         * renderer it already has, instead of pulling all of it down again.
+         */
+        manualChunks: (id) => (id.includes("node_modules/three") ? "three" : undefined)
+      }
+    },
+    chunkSizeWarningLimit: 800
+  },
   server: { host: true }
 });
