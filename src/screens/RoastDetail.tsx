@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
+import { ClayObject } from "../components/ClayObject";
 import { devPct, devWindow, dirArrow, fmt, fmtSigned, heatMarksOf, lossPct, readings } from "../lib/calc";
+import { buildPopper, tunePopper } from "../lib/models/popper";
 import { C, KEYS, LEVELS, MONO, MS, PHASE, SHADES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -29,6 +31,9 @@ export function RoastDetail() {
   let phaseRects: { left: string; w: string; fill: string }[] = [];
   const dw = devWindow(r);
   const marks = heatMarksOf(r);
+  // Where the heat sat at the moment that decided the roast.
+  const dialAt = ev.fc?.dial ?? ev.charge?.dial ?? null;
+  const dialMax = st.devices.find((d) => d.name === r.deviceName)?.heatMax || 7;
 
   const cmpR = st.compareId ? st.roasts.find((x) => x.id === st.compareId) : null;
 
@@ -644,6 +649,26 @@ export function RoastDetail() {
           </>
         )}
       </div>
+
+      {/* the machine, set the way this roast had it */}
+      {dialAt != null ? (
+        <div style={{ ...S.card, marginTop: 12, paddingTop: 4 }}>
+          <ClayObject
+            build={buildPopper}
+            tune={tunePopper}
+            v={dialAt / Math.max(1, dialMax)}
+            reach={1.5}
+            lift={0.74}
+            height={190}
+            shadow={[1.5, 1.3]}
+            inline
+            label={`The roaster with its heat dial at ${dialAt}, where this roast ran it`}
+          />
+          <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 2 }}>
+            DIAL {dialAt} AT {ev.fc ? "FIRST CRACK" : "CHARGE"}
+          </div>
+        </div>
+      ) : null}
 
       {/* summary */}
       <div style={{ ...S.card, marginTop: 12 }}>

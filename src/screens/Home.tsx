@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { ClayObject } from "../components/ClayObject";
 import { JotsMark } from "../components/JotsMark";
 import { Stamp } from "../components/Stamp";
 import { S } from "../components/ui";
 import { fmt, lossPct, originStamps, stampify } from "../lib/calc";
 import { C, GROT, LEVELS, MONO } from "../lib/constants";
+import { buildPopper } from "../lib/models/popper";
 import { storageEstimate } from "../db";
 import { useStore } from "../store";
 
@@ -527,11 +529,26 @@ export function Home() {
         style={{ ...S.input, marginBottom: 12 }}
       />
       {filtered.length === 0 ? (
-        <div style={{ ...S.card, fontSize: 13, color: C.muted }}>
-          {roasts.length === 0
-            ? "No roasts yet. Tap Start new roast to log your first one."
-            : `No roasts match “${st.q}”.`}
-        </div>
+        roasts.length === 0 ? (
+          // An empty journal is the one screen with nothing of your own on it,
+          // so it gets the machine instead of a sentence about not having one.
+          <div style={{ ...S.card, paddingTop: 4 }}>
+            <ClayObject
+              build={buildPopper}
+              reach={1.5}
+              lift={0.74}
+              height={210}
+              shadow={[1.5, 1.3]}
+              inline
+              label="A roaster waiting for its first roast"
+            />
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center", marginTop: 2 }}>
+              No roasts yet. Tap <strong style={{ color: C.ink }}>Start new roast</strong> to log your first one.
+            </div>
+          </div>
+        ) : (
+          <div style={{ ...S.card, fontSize: 13, color: C.muted }}>No roasts match “{st.q}”.</div>
+        )
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.map((r, i) => {

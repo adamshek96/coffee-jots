@@ -12,17 +12,23 @@ import { createStage } from "../lib/clay3d";
  */
 export function ClayObject({
   build,
+  tune,
+  v = 0,
   reach = 1.5,
   lift = 0,
   height = 220,
   spin = -0.55,
   tilt = 0.12,
   shadow,
+  inline = false,
   label,
   onPartTap,
 }: {
   /** Builds the object. Called once on mount. */
   build: () => THREE.Group;
+  /** Re-shapes the built object when `v` changes — a scale reading, say. */
+  tune?: (root: THREE.Group, v: number) => void;
+  v?: number;
   reach?: number;
   lift?: number;
   height?: number;
@@ -30,12 +36,23 @@ export function ClayObject({
   spin?: number;
   tilt?: number;
   shadow?: [number, number] | 0;
+  /**
+   * Sitting inline in a scrolling form. Vertical drags are given back to the
+   * page so a finger starting on the object still scrolls past it; turning it
+   * left and right still works. Without this an object in the middle of a form
+   * is a trap on a phone.
+   */
+  inline?: boolean;
   label: string;
   onPartTap?: (part: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
+  /** Held so a value change can reshape the object without rebuilding it. */
+  const live = useRef<{ root: THREE.Group; draw: () => void } | null>(null);
+  const tuneRef = useRef(tune);
+  tuneRef.current = tune;
   // Kept in refs: the render loop reads these every frame and must not restart.
   const cb = useRef(onPartTap);
   cb.current = onPartTap;
@@ -56,6 +73,8 @@ export function ClayObject({
 
     const obj = build();
     stage.pivot.add(obj);
+    live.current = { root: obj, draw: stage.render };
+    tuneRef.current?.(obj, v);
 
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const rest = { y: spin, x: tilt };
@@ -70,7 +89,7 @@ export function ClayObject({
 
     const frame = () => {
       raf = 0;
-      let live = false;
+      let more = false;
 
       if (intro < 1) {
         intro = Math.min(1, intro + 0.055);
@@ -78,17 +97,17 @@ export function ClayObject({
         const e = 1 - Math.pow(1 - intro, 3);
         stage.pivot.rotation.y = rest.y - 0.85 * (1 - e);
         stage.pivot.scale.setScalar(scale0 + (1 - scale0) * e);
-        live = true;
+        more = true;
       }
 
       if (!dragging && Math.abs(vel) > 0.0004) {
         stage.pivot.rotation.y += vel;
         vel *= 0.94;
-        live = true;
+        more = true;
       }
 
       stage.render();
-      if (live) raf = requestAnimationFrame(frame);
+      if (more) raf = requestAnimationFrame(frame);
     };
     const kick = () => {
       if (!raf) raf = requestAnimationFrame(frame);
@@ -124,8 +143,10 @@ export function ClayObject({
       moved += Math.abs(dx) + Math.abs(dy);
       vel = dx * 0.006;
       stage.pivot.rotation.y += vel;
-      // Let it lean, but never far enough to look at its own underside.
-      stage.pivot.rotation.x = Math.max(-0.42, Math.min(0.58, stage.pivot.rotation.x + dy * 0.005));
+      // Let it lean, but never far enough to look at its own underside. Inline
+      // objects don't lean at all — that gesture belongs to the page.
+      if (!inline)
+        stage.pivot.rotation.x = Math.max(-0.42, Math.min(0.58, stage.pivot.rotation.x + dy * 0.005));
       stage.render();
     };
 
@@ -176,6 +197,7 @@ export function ClayObject({
       el.removeEventListener("pointercancel", up);
       el.removeEventListener("keydown", key);
       document.removeEventListener("visibilitychange", vis);
+      live.current = null;
       stage.dispose();
     };
     // Built once: rebuilding the scene on every prop tick would drop the
@@ -183,10 +205,16 @@ export function ClayObject({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!live.current || !tuneRef.current) return;
+    tuneRef.current(live.current.root, v);
+    live.current.draw();
+  }, [v]);
+
   if (failed) return null;
 
   return (
-    <div ref={host} style={{ width: "100%", height, touchAction: "none" }}>
+    <div ref={host} style={{ width: "100%", height, touchAction: inline ? "pan-y" : "none" }}>
       <canvas
         ref={canvas}
         tabIndex={0}

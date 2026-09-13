@@ -1,3 +1,5 @@
+import { ClayObject } from "../components/ClayObject";
+import { buildScale, tuneScale } from "../lib/models/scale";
 import { Chip, S, ScreenHeader } from "../components/ui";
 import { fmt } from "../lib/calc";
 import { C, MONO, PROCESSES } from "../lib/constants";
@@ -312,6 +314,19 @@ export function NewRoast() {
       {/* green weight */}
       <div style={{ ...S.card, marginTop: 12, animation: "cjSlideUp 400ms cubic-bezier(0.22, 0.61, 0.36, 1)", animationDelay: "320ms" }}>
         <label style={S.fieldLabel}>Green weight (g)</label>
+        <ClayObject
+          build={() => buildScale("#8E9B6B")}
+          tune={tuneScale}
+          v={parseFloat(st.setupGreen) || 0}
+          reach={0.62}
+          lift={0.16}
+          height={150}
+          spin={-0.42}
+          tilt={0.34}
+          shadow={[1.25, 1.0]}
+          inline
+          label={`Scale reading ${st.setupGreen || 0} grams of green coffee`}
+        />
         <input
           value={st.setupGreen}
           onChange={(e) => set({ setupGreen: e.target.value.replace(/[^0-9.]/g, "") })}

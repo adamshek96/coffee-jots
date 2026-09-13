@@ -223,7 +223,21 @@ export function buildPopper(): THREE.Group {
   panel.rotation.x = -lean;
   root.add(panel);
 
+  root.userData.heatKnob = heat;
   return root;
+}
+
+/**
+ * Turn the heat dial to where a roast actually had it. On a roast record the
+ * machine is showing that roast rather than standing in for the idea of one.
+ * `frac` is 0–1 across the dial's range.
+ */
+export function tunePopper(root: THREE.Group, frac: number) {
+  const heat = root.userData.heatKnob as THREE.Group | undefined;
+  if (!heat) return;
+  const f = Math.max(0, Math.min(1, frac));
+  // A real knob sweeps about three-quarters of a turn, not all the way round.
+  heat.rotation.z = 2.3 - f * 4.6;
 }
 
 /** What each part of the machine is for, in the app's own words. */
