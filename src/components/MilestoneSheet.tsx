@@ -1,7 +1,41 @@
 import { useEffect, useState } from "react";
-import { fmt, fmtSigned, heatChangeDir, heatChangeLabel } from "../lib/calc";
+import { dirArrow, fmt, fmtSigned, heatMarksOf } from "../lib/calc";
 import { C, MONO, MS, OPTIONAL_MS, SHADES } from "../lib/constants";
+import type { Reading } from "../lib/calc";
 import type { EventMap, Ghost, MilestoneKey } from "../types";
+
+const MarkRow = ({
+  m,
+  cols,
+  heatMax,
+  unit,
+}: {
+  m: Reading;
+  cols: string;
+  heatMax: number;
+  unit: string;
+}) => (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: cols,
+      columnGap: 8,
+      padding: "5px 0 5px 14px",
+      borderBottom: "1px solid rgba(183,175,159,0.25)",
+      alignItems: "baseline",
+    }}
+  >
+    <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: m.dir === 0 || m.dir == null ? C.muted : C.rust }}>
+        {dirArrow(m.dir) || "·"}
+      </span>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>
+        {[heatMax > 0 && m.dial != null ? "dial " + m.dial : null, m.watts + unit].filter(Boolean).join("  ")}
+      </span>
+    </span>
+    <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, textAlign: "right" }}>{fmtSigned(m.t)}</span>
+  </div>
+);
 
 /**
  * The milestone log, pulled up over the live roast as a sheet.
@@ -14,6 +48,7 @@ import type { EventMap, Ghost, MilestoneKey } from "../types";
  */
 export function MilestoneSheet({
   ev,
+  marks,
   ghost,
   unit,
   heatMax,
@@ -24,6 +59,7 @@ export function MilestoneSheet({
   onClose,
 }: {
   ev: EventMap;
+  marks: Reading[];
   ghost: Ghost | null;
   unit: string;
   heatMax: number;
@@ -57,6 +93,22 @@ export function MilestoneSheet({
   // An optional milestone that neither you nor the batch you're following has
   // touched is noise — drop it rather than print a row of dashes.
   const rows = MS.filter((m) => ev[m.key] || ghost?.events[m.key] || !OPTIONAL_MS.includes(m.key));
+
+  /**
+   * Heat marks sit under the milestone they followed, in the order you logged
+   * them — the log reads down the roast the way it happened rather than
+   * collecting your adjustments somewhere else.
+   */
+  const marksAfter = (key: MilestoneKey): Reading[] => {
+    const from = ev[key]?.t;
+    if (from == null) return [];
+    const nextT = rows
+      .map((x) => ev[x.key]?.t)
+      .filter((t): t is number => t != null && t > from)
+      .sort((a, b) => a - b)[0];
+    return marks.filter((m) => m.t >= from && (nextT == null || m.t < nextT));
+  };
+  const strays = marks.filter((m) => !rows.some((x) => ev[x.key] != null && m.t >= ev[x.key]!.t));
 
   const cols = ghost ? "1fr 68px 68px 46px" : "1fr 58px 38px 58px";
   const head = ghost ? ["Event", "You", "B" + ghost.batch, "Δ"] : ["Event", "Time", "Dial", unit];
@@ -173,18 +225,14 @@ export function MilestoneSheet({
             const e = ev[m.key];
             const g = ghost?.events[m.key];
             const isNext = m.key === nextKey && !e;
-            // Which way the heat went, yours and the batch you're chasing. The
-            // row already carries the reading it landed on; this is the part
-            // you can't get from a number on its own.
-            const myDir = m.key === "extend" && e ? heatChangeDir(ev) : null;
-            const gDir = m.key === "extend" && g && ghost ? heatChangeDir(ghost.events) : null;
             // Charge is 0 by definition and preheat length is a habit, not a
             // target — a delta on either says nothing about how the roast ran.
             const paced = m.key !== "preheat" && m.key !== "charge";
             const d = e && g && paced ? e.t - g.t : null;
+            const after = marksAfter(m.key);
             return (
+              <div key={m.key}>
               <div
-                key={m.key}
                 style={{
                   display: "grid",
                   gridTemplateColumns: cols,
@@ -211,11 +259,6 @@ export function MilestoneSheet({
                     ) : null}
                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.label}</span>
                   </span>
-                  {myDir != null ? (
-                    <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.muted, marginTop: 1 }}>
-                      {heatChangeLabel(myDir)}
-                    </span>
-                  ) : null}
                 </span>
 
                 <span style={{ textAlign: "right" }}>
@@ -246,7 +289,7 @@ export function MilestoneSheet({
                     </span>
                     {g ? (
                       <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.muted, marginTop: 1 }}>
-                        {(gDir != null ? (gDir < 0 ? "↓" : gDir > 0 ? "↑" : "·") + " " : "") + settings(g)}
+                        {settings(g)}
                       </span>
                     ) : null}
                   </span>
@@ -274,8 +317,26 @@ export function MilestoneSheet({
                   </span>
                 )}
               </div>
+                {after.map((mk, i) => (
+                  <MarkRow key={i} m={mk} cols={cols} heatMax={heatMax} unit={unit} />
+                ))}
+              </div>
             );
           })}
+
+          {strays.length ? (
+            <div style={{ paddingTop: 4 }}>
+              {strays.map((mk, i) => (
+                <MarkRow key={i} m={mk} cols={cols} heatMax={heatMax} unit={unit} />
+              ))}
+            </div>
+          ) : null}
+
+          {marks.length ? (
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+              Indented rows are heat marks — where you moved the dial or the meter between milestones.
+            </div>
+          ) : null}
 
           {ghost ? (
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>

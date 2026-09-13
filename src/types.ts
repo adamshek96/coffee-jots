@@ -1,3 +1,8 @@
+/**
+ * "extend" is retired — heat changes are their own stream now (see HeatMark).
+ * It stays in the union so roasts logged while it was a milestone still read
+ * back; nothing writes it any more.
+ */
 export type MilestoneKey =
   | "preheat"
   | "charge"
@@ -36,6 +41,21 @@ export interface Observation {
   sound?: string; // one of SOUNDS
 }
 
+/**
+ * Where the heat stood at some moment that wasn't a milestone — logged as often
+ * as you like, whenever you move the dial or the meter.
+ *
+ * Milestones mark what the beans are doing; these mark what you are doing to
+ * them, and they're what turns the curve from a handful of checkpoints into an
+ * actual line. `t` is charge-relative, negative during preheat.
+ */
+export interface HeatMark {
+  t: number;
+  dial?: number;
+  fan?: string | null;
+  watts: number;
+}
+
 export interface Roast {
   id: string;
   createdAt: number;
@@ -59,6 +79,7 @@ export interface Roast {
   axis?: string;
   events: EventMap;
   observations?: Observation[];
+  heatMarks?: HeatMark[];
   finishedAt?: number;
 }
 
@@ -105,6 +126,7 @@ export interface Ghost {
   batch: number;
   rating: number;
   events: EventMap;
+  heatMarks?: HeatMark[];
   durationSec?: number;
 }
 
@@ -133,6 +155,7 @@ export interface ActiveRoast {
   watts: number;
   events: EventMap;
   observations: Observation[];
+  heatMarks: HeatMark[];
   coolStartedAt: number | null;
   coolDuration: number;
   preheatSec?: number;

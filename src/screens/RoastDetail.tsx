@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StaticWheel, WheelChips } from "../components/FlavorWheel";
 import { S, ScreenHeader } from "../components/ui";
-import { devPct, devWindow, fmt, fmtSigned, heatChangeVerb, lossPct } from "../lib/calc";
+import { devPct, devWindow, dirArrow, fmt, fmtSigned, heatMarksOf, lossPct, readings } from "../lib/calc";
 import { C, KEYS, LEVELS, MONO, MS, PHASE, SHADES } from "../lib/constants";
 import { useStore } from "../store";
 
@@ -16,22 +16,19 @@ export function RoastDetail() {
 
   const ev = r.events || {};
   const LV = LEVELS.find((x) => x.name === r.roastLevel);
-  // By time, not by rail order — a heat change can be tapped before FC Ends,
-  // and the line has to run forwards whatever order the taps came in.
-  const pts = (KEYS.map((k) => (ev[k] ? { k, ...ev[k]! } : null)).filter(Boolean) as ({
-    k: (typeof KEYS)[number];
-  } & { t: number; watts: number; shade?: number })[]).sort((a, b) => a.t - b.t);
+  // Milestones and heat marks on one line, in the order they happened.
+  const pts = readings(r);
   const hasCurve = pts.length >= 2;
   const dropT = ev.drop ? ev.drop.t : r.durationSec || (pts.length ? pts[pts.length - 1].t : 0);
 
   let curvePath = "";
-  let curveDots: { x: string; y: string; tag: string; tl: string; tagShift: string }[] = [];
+  let curveDots: { x: string; y: string; tag: string; mark: boolean; tl: string; tagShift: string }[] = [];
   let comparePath: string | null = null;
   let shadeSegs: { left: string; w: string; c: string }[] = [];
   let yTicks: { topPct: string; label: string }[] = [];
   let phaseRects: { left: string; w: string; fill: string }[] = [];
-  let easeLeft: string | null = null;
   const dw = devWindow(r);
+  const marks = heatMarksOf(r);
 
   const cmpR = st.compareId ? st.roasts.find((x) => x.id === st.compareId) : null;
 
@@ -57,7 +54,6 @@ export function RoastDetail() {
       browning: "BR",
       fc: "FC",
       fcEnds: "FE",
-      extend: "HC",
       cooling: "CO",
       drop: "DR",
     };
@@ -74,7 +70,8 @@ export function RoastDetail() {
       return {
         x: xp.toFixed(2),
         y: Y(p.watts).toFixed(2),
-        tag: TAGS[p.k],
+        tag: p.key ? TAGS[p.key] : "",
+        mark: p.key === null,
         tl: showTl ? fmtSigned(p.t) : "",
         tagShift: tagAlt ? "-320%" : "-190%",
       };
@@ -127,9 +124,6 @@ export function RoastDetail() {
     if (ev.yellowing && ev.fc)
       rects.push({ left: X(ev.yellowing.t), w: X(ev.fc.t) - X(ev.yellowing.t), fill: PHASE.maillard + "2E" });
     if (dw) rects.push({ left: X(dw.start), w: X(dw.end) - X(dw.start), fill: PHASE.development + "2E" });
-    // Moving the heat is a moment inside development, not a wall at the end of
-    // it, so it reads as a line drawn across the band rather than a new colour.
-    if (dw?.heatChange) easeLeft = X(dw.heatChange.t).toFixed(2);
     phaseRects = rects.map((x) => ({ left: x.left.toFixed(2), w: x.w.toFixed(2), fill: x.fill }));
   }
 
@@ -342,19 +336,6 @@ export function RoastDetail() {
                     }}
                   />
                 ))}
-                {easeLeft ? (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      bottom: 0,
-                      left: easeLeft + "%",
-                      width: 0,
-                      borderLeft: `1.5px dashed ${PHASE.extended}`,
-                      opacity: 0.75,
-                    }}
-                  />
-                ) : null}
                 {/* the reveal lives on a wrapper so the stroke itself is untouched */}
                 <div className="cjReveal" style={{ position: "absolute", inset: 0 }}>
                   <svg
@@ -405,11 +386,11 @@ export function RoastDetail() {
                           className="cjDot"
                           style={{
                             display: "block",
-                            width: 10,
-                            height: 10,
+                            width: d.mark ? 6 : 10,
+                            height: d.mark ? 6 : 10,
                             borderRadius: "50%",
-                            background: C.paperLight,
-                            border: "2px solid #C0472B",
+                            background: d.mark ? "#C0472B" : C.paperLight,
+                            border: d.mark ? "none" : "2px solid #C0472B",
                             animationDelay: `${at}ms`,
                           }}
                         />
@@ -517,27 +498,34 @@ export function RoastDetail() {
               </div>
             ))}
           </div>
-          {dw?.heatChange ? (
-            <div
-              style={{
-                marginTop: 10,
-                paddingTop: 10,
-                borderTop: `1px solid ${C.hair}`,
-                display: "flex",
-                alignItems: "baseline",
-                gap: 8,
-                fontSize: 12,
-                color: C.muted,
-                lineHeight: 1.5,
-              }}
-            >
-              <span style={{ width: 14, borderTop: `1.5px dashed ${PHASE.extended}`, flexShrink: 0, alignSelf: "center" }} />
-              <span>
-                Heat {heatChangeVerb(dw.heatChange.dir)} at{" "}
-                <span style={{ fontFamily: MONO, color: C.ink }}>{fmt(dw.heatChange.t)}</span> —{" "}
-                {fmt(dw.heatChange.t - dw.start)} into development, {fmt(dw.end - dw.heatChange.t)} still to run.
-                Development either side of it; the change is how you steered it.
-              </span>
+          {marks.length ? (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.hair}` }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 7 }}>
+                {marks.length} heat {marks.length === 1 ? "mark" : "marks"} through the roast
+                {dw ? ", " + marks.filter((m) => m.t >= dw.start && m.t <= dw.end).length + " of them in development" : ""}.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {marks.map((m, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10.5,
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: `1px solid ${C.hair}`,
+                      background: C.field,
+                      color: C.ink,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span style={{ color: m.dir ? C.rust : C.muted }}>{dirArrow(m.dir) || "·"}</span> {fmtSigned(m.t)}{" "}
+                    <span style={{ color: C.muted }}>
+                      {[m.dial != null ? "d" + m.dial : null, m.watts + (r.unit || "W")].filter(Boolean).join(" ")}
+                    </span>
+                  </span>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>

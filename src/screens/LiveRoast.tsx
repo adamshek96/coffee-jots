@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { FLIP, FlipReadout } from "../components/FlipReadout";
 import { MilestoneSheet } from "../components/MilestoneSheet";
 import { DangerAction, S } from "../components/ui";
-import { devWindow, fmt, fmtSigned, heatChangeVerb, ramp } from "../lib/calc";
+import { dirArrow, fmt, fmtSigned, heatMarksOf, ramp } from "../lib/calc";
 import { C, MONO, MS, PHASE, SHADES, SOUNDS } from "../lib/constants";
 import { haptic } from "../lib/haptics";
 import { keepAwake } from "../lib/wakeLock";
@@ -31,7 +31,7 @@ const machineBtn: CSSProperties = {
 
 export function LiveRoast() {
   const store = useStore();
-  const { st, set, tap, patchA, addObservation, undoObservation, discardActive } = store;
+  const { st, set, tap, patchA, addObservation, undoObservation, addHeatMark, undoHeatMark, discardActive } = store;
   const a = st.active!;
   const [, tick] = useReducer((n: number) => n + 1, 0);
   const [typingWatts, setTypingWatts] = useState(false);
@@ -86,7 +86,6 @@ export function LiveRoast() {
     // it, and the beans carry on developing either side.
     phase = ev.fc ? "development" : ev.yellowing ? "maillard" : "drying";
   }
-  const devChange = phase === "development" && ev.extend ? devWindow({ events: ev, durationSec: roastT })?.heatChange : null;
 
   const G = st.ghostOn && a.ghost ? a.ghost : null;
   const delta = (s: number) => (s >= 0 ? "+" : "−") + fmt(Math.abs(s));
@@ -118,9 +117,6 @@ export function LiveRoast() {
     if (dropped) return true;
     if (k === "preheat") return !!a.startedAt;
     if (k === "charge") return false;
-    // Available from first crack, not from the end of it: you reach for the
-    // dial while the cracking is still going.
-    if (k === "extend") return !ev.fc;
     return !a.startedAt;
   };
   const nextKey = MS.find((m) => !ev[m.key] && !isLocked(m.key))?.key;
@@ -168,6 +164,8 @@ export function LiveRoast() {
   const SP = D.steps || [10, 5];
   const obs = a.observations || [];
   const lastObs = obs[obs.length - 1];
+  // Through `readings` so each mark knows which way it moved from the one before.
+  const marks = heatMarksOf({ events: ev, heatMarks: a.heatMarks, durationSec: roastT });
 
   const commitWatts = () => {
     const v = parseInt(wattDraft.replace(/[^0-9]/g, ""), 10);
@@ -445,16 +443,7 @@ export function LiveRoast() {
             {(["drying", "maillard", "development"] as const).map((p) => (
               <div
                 key={p}
-                style={{
-                  flex: 1,
-                  height: 5,
-                  borderRadius: 3,
-                  background: PHASE[p],
-                  opacity: phase === p ? 1 : 0.22,
-                  // Once the heat has been eased, the development leg carries a
-                  // notch rather than handing over to a phase of its own.
-                  borderRight: p === "development" && ev.extend ? `2px solid ${PHASE.extended}` : undefined,
-                }}
+                style={{ flex: 1, height: 5, borderRadius: 3, background: PHASE[p], opacity: phase === p ? 1 : 0.22 }}
               />
             ))}
             <div
@@ -474,7 +463,7 @@ export function LiveRoast() {
                   : a.status === "preheating"
                     ? "PREHEAT"
                     : phase
-                      ? phase.toUpperCase() + (devChange ? " · " + heatChangeVerb(devChange.dir).toUpperCase() : "")
+                      ? phase.toUpperCase()
                       : "STANDBY"}
             </div>
           </div>
@@ -715,6 +704,104 @@ export function LiveRoast() {
         </div>
       </div>
 
+      {/* the heat, logged as often as you move it — every mark is a curve point */}
+      {(a.startedAt || a.status === "preheating") && !dropped ? (
+        <div style={{ ...S.card, padding: 14, marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+            <span
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                color: C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+              }}
+            >
+              Heat log
+            </span>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: C.muted }}>
+              {marks.length ? marks.length + " marked" : "mark it whenever you change it"}
+            </span>
+          </div>
+
+          <button
+            onClick={addHeatMark}
+            className="pressY"
+            style={{
+              width: "100%",
+              marginTop: 9,
+              height: 52,
+              borderRadius: 12,
+              border: `1.5px solid ${C.olive}`,
+              background: C.olive,
+              color: C.cream,
+              fontFamily: MONO,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <span style={{ opacity: 0.7, fontSize: 11 }}>MARK</span>
+            {D.heatMax > 0 ? <span>DIAL {a.dial}</span> : null}
+            <span>
+              {a.watts}
+              {D.unit}
+            </span>
+          </button>
+
+          {marks.length ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 9 }}>
+              <span
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  color: C.muted,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {marks
+                  .slice(-3)
+                  .map(
+                    (m) =>
+                      fmtSigned(m.t) +
+                      " " +
+                      dirArrow(m.dir) +
+                      (D.heatMax > 0 && m.dial != null ? "d" + m.dial + " " : "") +
+                      m.watts +
+                      D.unit,
+                  )
+                  .join("  ·  ")}
+              </span>
+              <button
+                onClick={undoHeatMark}
+                style={{
+                  flexShrink: 0,
+                  border: "none",
+                  background: "none",
+                  color: C.muted,
+                  fontSize: 11,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  padding: 2,
+                }}
+              >
+                undo
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* always-on observations — log colour and sound whenever you see/hear it */}
       {a.startedAt && !dropped ? (
         <div style={{ ...S.card, border: `1.5px solid ${C.rust}`, padding: 14, marginTop: 12 }}>
@@ -899,6 +986,7 @@ export function LiveRoast() {
       {logOpen ? (
         <MilestoneSheet
           ev={ev}
+          marks={marks}
           ghost={G}
           unit={D.unit}
           heatMax={D.heatMax}

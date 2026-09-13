@@ -1,5 +1,5 @@
 import { FAMILIES, KEYS, SHADES } from "./constants";
-import type { EventMap, Roast } from "../types";
+import type { EventMap, HeatMark, MilestoneKey, Roast } from "../types";
 
 /** 65 -> "1:05" */
 export function fmt(s: number): string {
@@ -111,13 +111,7 @@ export interface CurveGeom {
 /** Compact curve used by the share card. */
 export function curveFor(r: Roast): CurveGeom | null {
   const ev: EventMap = r.events || {};
-  // By time, not by rail order: a heat change can be tapped before FC Ends, and
-  // drawing the line in rail order would double it back on itself.
-  const pts = (KEYS.map((k) => (ev[k] ? { k, ...ev[k]! } : null)).filter(Boolean) as ({ k: string } & {
-    t: number;
-    watts: number;
-    shade?: number;
-  })[]).sort((a, b) => a.t - b.t);
+  const pts = readings(r);
   if (pts.length < 2) return null;
   const dropT = ev.drop ? ev.drop.t : r.durationSec || pts[pts.length - 1].t;
   const ws = pts.map((p) => p.watts);
@@ -248,8 +242,57 @@ export const lossPct = (r: { greenWeight?: number; roastedWeight?: number | null
 
 interface RoastLike {
   events?: EventMap;
+  heatMarks?: HeatMark[];
   durationSec?: number;
 }
+
+export interface Reading {
+  t: number;
+  dial?: number;
+  fan?: string | null;
+  watts: number;
+  shade?: number;
+  /** The milestone this reading belongs to, or null for a free-standing mark. */
+  key: MilestoneKey | null;
+  /** Against the reading before it: -1 down, 1 up, 0 level. Null for the first. */
+  dir: -1 | 0 | 1 | null;
+}
+
+/**
+ * Every moment the heat was on record, milestones and free-standing marks
+ * alike, in the order they happened.
+ *
+ * One timeline feeds the curve, the log sheet and the detail table, so a mark
+ * can't show up in one and be missing from another. Direction is computed here
+ * rather than stored, because "up" only means anything relative to whatever
+ * reading came before it — which changes as marks are added between them.
+ */
+export function readings(r: RoastLike): Reading[] {
+  const ev = r.events || {};
+  const pts: Omit<Reading, "dir">[] = KEYS.filter((k) => ev[k]).map((k) => ({ ...ev[k]!, key: k }));
+  // Roasts logged while heat changes were a milestone keep theirs in `events`.
+  if (ev.extend) pts.push({ ...ev.extend, key: null });
+  for (const m of r.heatMarks || []) pts.push({ ...m, key: null });
+  pts.sort((a, b) => a.t - b.t);
+
+  return pts.map((p, i) => {
+    const prev = pts[i - 1];
+    let dir: -1 | 0 | 1 | null = null;
+    if (prev) {
+      // The dial leads where the machine has one; the meter only follows it.
+      if (prev.dial != null && p.dial != null && p.dial !== prev.dial) dir = p.dial > prev.dial ? 1 : -1;
+      else if (p.watts !== prev.watts) dir = p.watts > prev.watts ? 1 : -1;
+      else dir = 0;
+    }
+    return { ...p, dir };
+  });
+}
+
+/** The free-standing heat marks only, in order, with direction resolved. */
+export const heatMarksOf = (r: RoastLike): Reading[] => readings(r).filter((x) => x.key === null);
+
+/** "↓" / "↑" / "·" — which way the heat went, at a glance. */
+export const dirArrow = (dir: -1 | 0 | 1 | null): string => (dir == null ? "" : dir < 0 ? "\u2193" : dir > 0 ? "\u2191" : "\u00b7");
 
 /**
  * When the heat came off: Cooling if it was tapped, otherwise the Drop.
@@ -269,11 +312,6 @@ export interface DevWindow {
   start: number;
   /** Heat off — see heatOffAt. */
   end: number;
-  /**
-   * Where the heat was changed inside the window, if it was, and which way it
-   * went: -1 down, 1 up, 0 when only the fan moved or nothing did.
-   */
-  heatChange: { t: number; dir: -1 | 0 | 1 } | null;
   seconds: number;
   /** Share of the heated roast spent developing, 0–1. */
   ratio: number;
@@ -282,12 +320,9 @@ export interface DevWindow {
 /**
  * Development: first crack until the heat comes off.
  *
- * The heat-change mark is deliberately not a boundary. It records that the
- * heat moved part-way through — down to stop the beans running away, up to
- * drive them on — which is a variation in how you develop, not the end of
- * developing. Splitting the window there would report two short phases where
- * there is one long one, and would make a steered roast look under-developed
- * precisely because it was steered.
+ * Moving the heat part-way through doesn't end it. You back off to stop the
+ * beans running away, or push to drive them on, and they go on developing
+ * either side — so heat marks fall inside this window rather than dividing it.
  *
  * This is the single definition; every development figure in the app reads it,
  * so the number on a share card can't drift from the one on the curve.
@@ -297,45 +332,8 @@ export function devWindow(r: RoastLike): DevWindow | null {
   if (!ev.fc) return null;
   const end = heatOffAt(r);
   if (!end || end <= ev.fc.t) return null;
-
-  const dir = heatChangeDir(ev);
-  return {
-    start: ev.fc.t,
-    end,
-    heatChange: ev.extend ? { t: ev.extend.t, dir: dir ?? 0 } : null,
-    seconds: end - ev.fc.t,
-    ratio: (end - ev.fc.t) / end,
-  };
+  return { start: ev.fc.t, end, seconds: end - ev.fc.t, ratio: (end - ev.fc.t) / end };
 }
-
-/**
- * Which way the heat moved at the change: -1 down, 1 up, 0 if only the fan
- * did. Null when there was no change to report.
- *
- * Compared against whatever was in force just before the tap — the previous
- * milestone, usually first crack, or FC Ends if the change came after it. The
- * dial leads where the machine has one, since the meter only follows it.
- */
-export function heatChangeDir(ev: EventMap): -1 | 0 | 1 | null {
-  const ex = ev.extend;
-  if (!ex) return null;
-  const before = KEYS.filter((k) => ev[k] && ev[k]!.t < ex.t)
-    .map((k) => ev[k]!)
-    .sort((a, b) => a.t - b.t)
-    .pop();
-  if (!before) return 0;
-  if (before.dial != null && ex.dial != null && ex.dial !== before.dial) return ex.dial > before.dial ? 1 : -1;
-  if (ex.watts !== before.watts) return ex.watts > before.watts ? 1 : -1;
-  return 0;
-}
-
-/** "↓ eased" / "↑ raised" / "changed" — direction as a fingertip-sized label. */
-export const heatChangeLabel = (dir: -1 | 0 | 1): string =>
-  dir < 0 ? "↓ eased" : dir > 0 ? "↑ raised" : "changed";
-
-/** "eased" / "raised" / "changed", from which way the heat actually went. */
-export const heatChangeVerb = (dir: -1 | 0 | 1): string =>
-  dir < 0 ? "eased" : dir > 0 ? "raised" : "changed";
 
 /** Development as a whole-number percent, the figure shown on cards. */
 export const devPct = (r: RoastLike): number | null => {
@@ -394,9 +392,9 @@ export function stackedCurves(roasts: Roast[], alignFc: boolean): StackedGeom | 
     // them into the range squashes every curve into the top of the chart to
     // make room for a cliff that says nothing about the trajectory.
     const stop = heatOffAt(r);
-    const pts = KEYS.filter((k) => ev[k] && ev[k]!.t < stop)
-      .map((k) => ({ t: ev[k]!.t, w: ev[k]!.watts }))
-      .sort((a, b) => a.t - b.t);
+    const pts = readings(r)
+      .filter((x) => x.t < stop)
+      .map((x) => ({ t: x.t, w: x.watts }));
     const fcT = ev.fc ? ev.fc.t : null;
     if ((r.unit || "W") !== unit || pts.length < 2 || (alignFc && fcT == null)) {
       skipped++;

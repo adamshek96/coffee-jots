@@ -161,6 +161,8 @@ export interface Store {
   patchA: (p: Partial<ActiveRoast>) => void;
   addObservation: (patch: { shade?: number; sound?: string }) => void;
   undoObservation: () => void;
+  addHeatMark: () => void;
+  undoHeatMark: () => void;
   beginRoast: () => void;
   savePost: () => void;
   discardActive: () => void;
@@ -389,6 +391,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [set, persistActive],
   );
 
+  /**
+   * Log where the heat stands right now. Unlimited and free-standing: you move
+   * the dial whenever the roast asks for it, not only at checkpoints, and each
+   * mark becomes another point on the curve.
+   */
+  const addHeatMark = useCallback(() => {
+    const a = ref.current.active;
+    if (!a) return;
+    const t = a.startedAt
+      ? (Date.now() - a.startedAt) / 1000
+      : a.preheatAt
+        ? -((Date.now() - a.preheatAt) / 1000)
+        : 0;
+    const next: ActiveRoast = {
+      ...a,
+      heatMarks: [...(a.heatMarks || []), { t, dial: a.dial, fan: a.fan, watts: a.watts }],
+    };
+    haptic("mark");
+    set({ active: next });
+    persistActive(next);
+  }, [set, persistActive]);
+
+  const undoHeatMark = useCallback(() => {
+    const a = ref.current.active;
+    if (!a || !a.heatMarks?.length) return;
+    const next: ActiveRoast = { ...a, heatMarks: a.heatMarks.slice(0, -1) };
+    set({ active: next });
+    persistActive(next);
+  }, [set, persistActive]);
+
   const undoObservation = useCallback(() => {
     const a = ref.current.active;
     if (!a || !a.observations?.length) return;
@@ -422,7 +454,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // An explicit pick wins; otherwise follow the best-rated prior batch.
     const g0 = s.followId ? s.roasts.find((r) => r.id === s.followId) : prior[0];
     const ghost = g0
-      ? { batch: g0.batch || 1, rating: g0.rating || 0, events: g0.events, durationSec: g0.durationSec }
+      ? {
+          batch: g0.batch || 1,
+          rating: g0.rating || 0,
+          events: g0.events,
+          heatMarks: g0.heatMarks,
+          durationSec: g0.durationSec,
+        }
       : null;
     const active: ActiveRoast = {
       id: "r" + Date.now(),
@@ -449,6 +487,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coolStartedAt: null,
       coolDuration: D.coolDefault,
       observations: [],
+      heatMarks: [],
       droppedAt: null,
     };
     set({ beans, screen: "live", active });
@@ -484,6 +523,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       durationSec: total,
       preheatSec: a.preheatSec,
       observations: a.observations,
+      heatMarks: a.heatMarks,
       finishedAt: Date.now(),
     };
     // A country the journal has never seen — the passport gains a stamp, and
@@ -895,6 +935,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patchA,
       addObservation,
       undoObservation,
+      addHeatMark,
+      undoHeatMark,
       beginRoast,
       savePost,
       discardActive,
@@ -936,6 +978,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patchA,
       addObservation,
       undoObservation,
+      addHeatMark,
+      undoHeatMark,
       beginRoast,
       savePost,
       discardActive,

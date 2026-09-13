@@ -103,9 +103,10 @@ export const FANS: Record<FanKind, string[] | null> = {
 
 // ---- milestones, in rail order ----
 /**
- * Rail order. A heat change sits between first crack and the end of it, which
- * is when you actually reach for the dial — though nothing depends on that
- * being the order it happened in: anything drawn from these is sorted by time.
+ * Rail order. Milestones only — what the beans are doing. What you did to the
+ * heat is a separate, unlimited stream (HeatMark), so "extend" is gone from
+ * here; roasts that logged it while it was a milestone still read back through
+ * `readings()`.
  */
 export const KEYS: MilestoneKey[] = [
   "preheat",
@@ -113,7 +114,6 @@ export const KEYS: MilestoneKey[] = [
   "yellowing",
   "browning",
   "fc",
-  "extend",
   "fcEnds",
   "cooling",
   "drop",
@@ -125,14 +125,13 @@ export const MS: { key: MilestoneKey; label: string; hint: string }[] = [
   { key: "yellowing", label: "Yellowing", hint: "drying done, straw color" },
   { key: "browning", label: "Browning", hint: "maillard, smells bready" },
   { key: "fc", label: "First Crack", hint: "first snaps" },
-  { key: "extend", label: "Heat Change", hint: "optional — moved the heat, up or down" },
   { key: "fcEnds", label: "FC Ends", hint: "cracking slows" },
   { key: "cooling", label: "Cooling", hint: "heat off, fan high, coasting" },
   { key: "drop", label: "Drop", hint: "ends the roast, stops the clock" },
 ];
 
 /** Milestones that are optional — the roast is complete without them. */
-export const OPTIONAL_MS: MilestoneKey[] = ["preheat", "extend", "cooling"];
+export const OPTIONAL_MS: MilestoneKey[] = ["preheat", "cooling"];
 
 // origins offered as ghost stamps in the Passport
 export const GHOST_ORIGINS = ["Costa Rica", "Indonesia", "Yemen", "Rwanda", "Honduras", "Peru", "Panama", "Burundi"];
