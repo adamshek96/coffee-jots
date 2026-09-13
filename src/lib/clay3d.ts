@@ -22,13 +22,16 @@ export const CLAY = {
   panelEdge: "#C9C2B2",
   knob: "#241D16",
   knobRim: "#8A8073",
-  smoke: "#AD8963",
+  smoke: "#C8AC77",
   kraft: "#C9A574",
   bean: "#7A4626",
   brew: "#7A4C31",
   steel: "#B7AF9F",
   rust: "#A9613A",
   olive: "#575618",
+  oliveDeep: "#43420F",
+  cream: "#F4F1E9",
+  hair: "#B7AF9F",
 };
 
 /** Matte through and through — clay takes no shine. */

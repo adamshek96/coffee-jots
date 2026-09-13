@@ -37,13 +37,13 @@ export function buildScale(beanColor = "#8E9B6B", unit = "g"): THREE.Group {
   const root = new THREE.Group();
 
   // ---- body ----
-  const base = new THREE.Mesh(roundedBox(0.92, 0.15, 0.72, 0.05), clayMaterial(CLAY.kraft));
+  const base = new THREE.Mesh(roundedBox(0.92, 0.15, 0.72, 0.05), clayMaterial(CLAY.olive));
   base.position.y = 0.075;
   root.add(base);
 
   for (const dx of [-0.36, 0.36]) {
     for (const dz of [-0.27, 0.27]) {
-      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.02, 16), clayMaterial(CLAY.machineDark));
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.02, 16), clayMaterial(CLAY.oliveDeep));
       foot.position.set(dx, 0.006, dz);
       root.add(foot);
     }
@@ -56,7 +56,7 @@ export function buildScale(beanColor = "#8E9B6B", unit = "g"): THREE.Group {
   const faceTex = new THREE.CanvasTexture(face);
   faceTex.colorSpace = THREE.SRGBColorSpace;
 
-  const bezel = new THREE.Mesh(roundedBox(0.38, 0.12, 0.02, 0.02), clayMaterial(CLAY.machineDark));
+  const bezel = new THREE.Mesh(roundedBox(0.38, 0.12, 0.02, 0.02), clayMaterial(CLAY.oliveDeep));
   bezel.position.set(0, 0.08, 0.365);
   root.add(bezel);
 
@@ -69,9 +69,9 @@ export function buildScale(beanColor = "#8E9B6B", unit = "g"): THREE.Group {
 
   // ---- pan: rides on the body and settles as the number climbs ----
   const pan = new THREE.Group();
-  const plate = new THREE.Mesh(roundedBox(0.8, 0.045, 0.62, 0.03), clayMaterial("#D3CCBC"));
+  const plate = new THREE.Mesh(roundedBox(0.8, 0.045, 0.62, 0.03), clayMaterial(CLAY.cream));
   pan.add(plate);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.022, 10, 40), clayMaterial("#A79E8C"));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.022, 10, 40), clayMaterial(CLAY.hair));
   rim.rotation.x = Math.PI / 2;
   rim.scale.set(1.16, 1, 0.92);
   rim.position.y = 0.012;
