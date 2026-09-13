@@ -14,6 +14,7 @@ export function ClayObject({
   build,
   tune,
   v = 0,
+  animate,
   reach = 1.5,
   lift = 0,
   height = 220,
@@ -29,6 +30,13 @@ export function ClayObject({
   /** Re-shapes the built object when `v` changes — a scale reading, say. */
   tune?: (root: THREE.Group, v: number) => void;
   v?: number;
+  /**
+   * Called every frame when the object has something genuinely moving in it,
+   * like steam. Supplying this opts out of render-on-demand, so only pass it
+   * where continuous motion is the point — never on the live roast screen,
+   * which runs for fifteen minutes with the display forced awake.
+   */
+  animate?: (root: THREE.Group, tMs: number) => void;
   reach?: number;
   lift?: number;
   height?: number;
@@ -53,6 +61,8 @@ export function ClayObject({
   const live = useRef<{ root: THREE.Group; draw: () => void } | null>(null);
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
+  const animRef = useRef(animate);
+  animRef.current = animate;
   // Kept in refs: the render loop reads these every frame and must not restart.
   const cb = useRef(onPartTap);
   cb.current = onPartTap;
@@ -89,7 +99,10 @@ export function ClayObject({
 
     const frame = () => {
       raf = 0;
-      let more = false;
+      // Motion that never settles keeps the loop alive; everything else lets it
+      // stop. Reduced-motion users get the object, just held still.
+      let more = !calm && !!animRef.current;
+      if (more) animRef.current!(obj, performance.now());
 
       if (intro < 1) {
         intro = Math.min(1, intro + 0.055);

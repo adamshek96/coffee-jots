@@ -209,6 +209,18 @@ export function Home() {
         </button>
       ) : null}
 
+      {/* The machine, sitting on the page above the button that starts it. No
+          caption — on the home screen it's the object itself doing the work. */}
+      <ClayObject
+        build={buildPopper}
+        reach={1.5}
+        lift={0.74}
+        height={210}
+        shadow={[1.5, 1.3]}
+        inline
+        label="Your roaster — drag to turn it"
+      />
+
       <button
         onClick={() =>
           set({
@@ -529,26 +541,11 @@ export function Home() {
         style={{ ...S.input, marginBottom: 12 }}
       />
       {filtered.length === 0 ? (
-        roasts.length === 0 ? (
-          // An empty journal is the one screen with nothing of your own on it,
-          // so it gets the machine instead of a sentence about not having one.
-          <div style={{ ...S.card, paddingTop: 4 }}>
-            <ClayObject
-              build={buildPopper}
-              reach={1.5}
-              lift={0.74}
-              height={210}
-              shadow={[1.5, 1.3]}
-              inline
-              label="A roaster waiting for its first roast"
-            />
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center", marginTop: 2 }}>
-              No roasts yet. Tap <strong style={{ color: C.ink }}>Start new roast</strong> to log your first one.
-            </div>
-          </div>
-        ) : (
-          <div style={{ ...S.card, fontSize: 13, color: C.muted }}>No roasts match “{st.q}”.</div>
-        )
+        <div style={{ ...S.card, fontSize: 13, color: C.muted }}>
+          {roasts.length === 0
+            ? "No roasts yet. Tap Start new roast to log your first one."
+            : `No roasts match “${st.q}”.`}
+        </div>
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.map((r, i) => {

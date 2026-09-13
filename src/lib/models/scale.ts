@@ -18,6 +18,9 @@ interface ScaleBits {
   face: HTMLCanvasElement;
   faceTex: THREE.CanvasTexture;
   unit: string;
+  steam: THREE.Mesh[] | null;
+  /** How loaded the pan is, 0-1 — steam thins out as the heap does. */
+  load: number;
 }
 
 /** Redraws the little readout. Kept on the object so tuning can call it. */
@@ -33,7 +36,35 @@ function paintFace(bits: ScaleBits, grams: number) {
   bits.faceTex.needsUpdate = true;
 }
 
-export function buildScale(beanColor = "#8E9B6B", unit = "g"): THREE.Group {
+/**
+ * A soft round puff, faded to nothing at the edges.
+ *
+ * Warm grey, not white. Steam is drawn light when it sits on a dark photo, but
+ * these objects sit on cream paper — white vapour on a cream card is invisible,
+ * which is exactly how the first attempt came out. Against light ground it has
+ * to read a shade darker than the page to be seen at all.
+ */
+function puffTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(118,103,84,0.8)");
+  g.addColorStop(0.4, "rgba(118,103,84,0.38)");
+  g.addColorStop(1, "rgba(122,108,90,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/**
+ * Build a scale. `hot` adds steam, for the roasted weight — beans come off the
+ * cooling tray still giving off heat, and that's the difference between this
+ * and the one on the way in.
+ */
+export function buildScale(beanColor = "#8E9B6B", unit = "g", hot = false): THREE.Group {
   const root = new THREE.Group();
 
   // ---- body ----
@@ -100,7 +131,26 @@ export function buildScale(beanColor = "#8E9B6B", unit = "g"): THREE.Group {
   pan.position.y = 0.2;
   root.add(pan);
 
-  const bits: ScaleBits = { pan, beans, face, faceTex, unit };
+  // ---- steam ----
+  let steam: THREE.Mesh[] | null = null;
+  if (hot) {
+    steam = [];
+    const tex = puffTexture();
+    for (let i = 0; i < 6; i++) {
+      const puff = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.44, 0.44),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 }),
+      );
+      // Spread the cycle so they drift up in a stream rather than in a block.
+      puff.userData.phase = i / 6;
+      puff.userData.drift = (i % 3) - 1;
+      puff.renderOrder = 2;
+      root.add(puff);
+      steam.push(puff);
+    }
+  }
+
+  const bits: ScaleBits = { pan, beans, face, faceTex, unit, steam, load: 0 };
   root.userData.bits = bits;
   paintFace(bits, 0);
   return root;
@@ -112,6 +162,7 @@ export function tuneScale(root: THREE.Group, grams: number) {
   if (!bits) return;
   const g = Math.max(0, Math.min(MAX_G, grams || 0));
   const load = g / MAX_G;
+  bits.load = load;
 
   // The pan gives a little under the weight, but only a little — a scale that
   // visibly sagged would read as broken rather than loaded.
@@ -121,4 +172,33 @@ export function tuneScale(root: THREE.Group, grams: number) {
   bits.beans.forEach((b, i) => (b.visible = i < shown));
 
   paintFace(bits, g);
+}
+
+/**
+ * Drift the steam. Each puff rises, swells and fades on its own offset phase,
+ * so the stream reads as continuous without any of them being individually
+ * followable. Each is turned back against the pivot so it keeps facing you when
+ * the scale is turned — steam goes up whichever way the object is pointing.
+ */
+export function steamScale(root: THREE.Group, tMs: number) {
+  const bits = root.userData.bits as ScaleBits | undefined;
+  if (!bits?.steam) return;
+  const pivot = root.parent;
+  const t = tMs / 2600;
+
+  for (const puff of bits.steam) {
+    const k = (t + (puff.userData.phase as number)) % 1;
+    const drift = puff.userData.drift as number;
+
+    puff.position.set(drift * 0.1 * k + Math.sin(k * 4 + drift) * 0.032, 0.34 + k * 0.46, 0.04);
+    puff.scale.setScalar(0.5 + k * 0.8);
+    // In quickly, out slowly, and nothing at all on an empty pan.
+    const fade = Math.min(1, k * 4.5) * (1 - k);
+    (puff.material as THREE.MeshBasicMaterial).opacity = fade * 0.85 * Math.min(1, bits.load * 3);
+
+    // Cancel the parent's rotation so the plane always faces the camera.
+    // Negating the parent's Euler angles does NOT invert a rotation — order
+    // matters — and the near-edge-on planes it produced were invisible.
+    if (pivot) puff.quaternion.copy(pivot.quaternion).invert();
+  }
 }

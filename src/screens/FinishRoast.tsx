@@ -1,5 +1,5 @@
 import { ClayObject } from "../components/ClayObject";
-import { buildScale, tuneScale } from "../lib/models/scale";
+import { buildScale, steamScale, tuneScale } from "../lib/models/scale";
 import { S, ScreenHeader } from "../components/ui";
 import { C, EVEN_CAPTIONS, EVEN_DOTS, LEVELS, MONO } from "../lib/constants";
 import { useStore } from "../store";
@@ -76,15 +76,16 @@ export function FinishRoast() {
       <div style={S.card}>
         <label style={S.fieldLabel}>Roasted weight (g)</label>
         <ClayObject
-          build={() => buildScale("#7A4626")}
+          build={() => buildScale("#7A4626", "g", true)}
+          animate={steamScale}
           tune={tuneScale}
           v={parseFloat(st.postWeight) || 0}
-          reach={0.62}
-          lift={0.16}
-          height={150}
+          reach={0.76}
+          lift={0.3}
+          height={200}
           spin={-0.42}
           tilt={0.34}
-          shadow={[1.25, 1.0]}
+          shadow={[1.3, 1.05]}
           inline
           label={`Scale reading ${st.postWeight || 0} grams of roasted coffee`}
         />
