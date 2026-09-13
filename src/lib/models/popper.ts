@@ -88,34 +88,6 @@ function knob(r: number): THREE.Group {
   return g;
 }
 
-/**
- * The lid's silhouette, from the side: an arch that springs higher at the back
- * and sweeps down across the front, so its front edge hangs out over the chaff
- * basket the way the real one does. A rounded box read as a pill and lost the
- * whole character of the machine.
- *
- * Drawn as points because the extruder takes a polyline, not a curve.
- */
-function domeProfile(): [number, number][] {
-  const frontX = -0.4;
-  const backX = 0.26;
-  const frontSpring = 0.02;
-  const backSpring = 0.14;
-  const rise = 0.34;
-  const pts: [number, number][] = [
-    [frontX, 0],
-    [backX, 0],
-  ];
-  const N = 26;
-  for (let i = 0; i <= N; i++) {
-    const t = i / N; // back -> front
-    const x = backX + (frontX - backX) * t;
-    const spring = backSpring + (frontSpring - backSpring) * t;
-    pts.push([x, spring + rise * Math.sin(Math.PI * (0.12 + t * 0.76))]);
-  }
-  return pts;
-}
-
 export function buildPopper(): THREE.Group {
   const root = new THREE.Group();
 
@@ -150,6 +122,11 @@ export function buildPopper(): THREE.Group {
     root.add(foot);
   }
 
+  // the collar the lid seats into, hiding its bottom edge
+  const collar = new THREE.Mesh(roundedBox(0.61, 0.15, 0.64, 0.03), clayMaterial(CLAY.machineDark));
+  collar.position.set(0, 0.885, 0.04);
+  root.add(mark(collar, "body"));
+
   // ---- chaff basket: black, hung on the front, under the lid's overhang ----
   const chamber = new THREE.Group();
   const shell = new THREE.Mesh(roundedBox(0.56, 0.22, 0.32, 0.026), clayMaterial("#2B251D"));
@@ -164,8 +141,8 @@ export function buildPopper(): THREE.Group {
 
   // the clips it hangs by
   for (const dx of [-0.24, 0.24]) {
-    const clip = new THREE.Mesh(roundedBox(0.05, 0.07, 0.1, 0.015), clayMaterial(CLAY.machineDark));
-    clip.position.set(dx, 0.12, 0.04);
+    const clip = new THREE.Mesh(roundedBox(0.055, 0.12, 0.1, 0.015), clayMaterial(CLAY.machineDark));
+    clip.position.set(dx, 0.14, 0.02);
     chamber.add(clip);
   }
 
@@ -174,31 +151,39 @@ export function buildPopper(): THREE.Group {
   lip.position.set(0, -0.105, 0.175);
   chamber.add(lip);
 
-  chamber.position.set(0, 0.84, 0.3);
+  chamber.position.set(0, 0.78, 0.3);
   root.add(mark(chamber, "chamber"));
 
   // ---- hopper: the smoked dome over the top ----
   const hopper = new THREE.Group();
+  /**
+   * Rounded in both axes, not extruded. An extruded arch is flat across its
+   * width, so head-on it presents a wall and reads as a cutout pasted over the
+   * machine — which is exactly what it looked like. The real lid is a bread-bin
+   * dome: broad rounded top, sides falling away in every direction.
+   *
+   * The bottom fillet is deliberately sunk into the collar below, so what you
+   * see is a lid seated on the machine rather than a shape hovering near it.
+   */
   const dome = new THREE.Mesh(
-    profileSolid(domeProfile(), 0.54, 0.02),
+    roundedBox(0.56, 0.42, 0.62, 0.13, 6),
     new THREE.MeshStandardMaterial({
       color: new THREE.Color(CLAY.smoke),
       roughness: 0.4,
       metalness: 0,
       transparent: true,
       opacity: 0.4,
-      // A closed shell seen from inside as well as out is what sells it as
-      // glass rather than a tinted slab.
+      // Seen from inside as well as out — that's what sells it as glass
+      // rather than a tinted slab.
       side: THREE.DoubleSide,
       depthWrite: false,
     }),
   );
-  dome.rotation.y = Math.PI / 2;
   hopper.add(dome);
 
   // the stirrer arm, just visible through the smoke
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.012, 0.014), clayMaterial(CLAY.steel));
-  arm.position.y = 0.03;
+  arm.position.y = -0.13;
   hopper.add(arm);
 
   // A charge of green, pooled in the bottom. Without it the hopper is an empty
@@ -206,15 +191,15 @@ export function buildPopper(): THREE.Group {
   const beanGeo = new THREE.SphereGeometry(0.045, 14, 10);
   const beanMat = clayMaterial("#8E9B6B", { rough: 0.9 });
   for (const [bx, by, bz, r] of [
-    [-0.17, -0.13, 0.04, 0.4],
-    [-0.07, -0.15, -0.08, 1.1],
-    [0.04, -0.13, 0.07, 2.0],
-    [0.14, -0.15, -0.05, 0.7],
-    [-0.11, -0.08, -0.02, 2.6],
-    [0.0, -0.07, 0.06, 1.5],
-    [0.1, -0.09, 0.1, 0.2],
-    [-0.02, -0.14, 0.14, 2.3],
-    [0.18, -0.09, 0.05, 0.9],
+    [-0.16, -0.15, 0.04, 0.4],
+    [-0.06, -0.16, -0.08, 1.1],
+    [0.05, -0.15, 0.07, 2.0],
+    [0.14, -0.16, -0.05, 0.7],
+    [-0.1, -0.1, -0.02, 2.6],
+    [0.01, -0.09, 0.06, 1.5],
+    [0.1, -0.11, 0.1, 0.2],
+    [-0.02, -0.15, 0.15, 2.3],
+    [0.17, -0.11, 0.05, 0.9],
   ]) {
     const bean = new THREE.Mesh(beanGeo, beanMat);
     bean.scale.set(1, 0.66, 0.82);
@@ -223,7 +208,7 @@ export function buildPopper(): THREE.Group {
     hopper.add(bean);
   }
 
-  hopper.position.set(0, 1.16, 0.05);
+  hopper.position.set(0, 1.12, 0.04);
   hopper.rotation.x = -0.02;
   root.add(mark(hopper, "hopper"));
 
