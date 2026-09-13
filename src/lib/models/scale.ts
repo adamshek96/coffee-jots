@@ -10,7 +10,12 @@ import { CLAY, clayMaterial, roundedBox } from "../clay3d";
  * It reads the value rather than setting it; the field is still the control.
  */
 
-const MAX_G = 160;
+/**
+ * What counts as a full dish. A popper batch is 80–120 g, so scaling the heap
+ * against 160 left a normal roast showing only the beans deep in the bottom —
+ * invisible over the rim, which read as an empty bowl.
+ */
+const MAX_G = 120;
 
 interface ScaleBits {
   pan: THREE.Group;
@@ -108,16 +113,53 @@ export function buildScale(beanColor = "#8E9B6B", unit = "g", hot = false): THRE
   rim.position.y = 0.012;
   pan.add(rim);
 
-  // A heap that grows with the reading. All of them are built up front and
-  // simply hidden — allocating meshes on every keystroke would stutter.
+  /**
+   * The bowl. Nobody tips beans straight onto the pan — they go in a dish and
+   * you tare it off, so the beans sat loose on the tray was the one part of
+   * this that didn't match how weighing actually goes.
+   *
+   * Turned rather than boxed: a lathed profile gives a real wall thickness and
+   * a rim you can see over, which is what makes it read as a vessel with
+   * something in it rather than a disc with beans balanced on top.
+   */
+  const bowlProfile = [
+    [0.0, 0.028],
+    [0.25, 0.028],
+    [0.272, 0.06],
+    [0.292, 0.145],
+    [0.304, 0.188],
+    [0.324, 0.197],
+    [0.318, 0.14],
+    [0.3, 0.045],
+    [0.23, 0.0],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const bowl = new THREE.Mesh(
+    new THREE.LatheGeometry(bowlProfile, 44),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(CLAY.rust),
+      roughness: 0.72,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    }),
+  );
+  bowl.position.y = 0.022;
+  pan.add(bowl);
+
+  // A heap that grows with the reading, banked up inside the bowl. All of them
+  // are built up front and simply hidden — allocating meshes on every keystroke
+  // would stutter.
   const beans: THREE.Mesh[] = [];
-  const geo = new THREE.SphereGeometry(0.045, 14, 10);
+  const geo = new THREE.SphereGeometry(0.042, 14, 10);
   const mat = clayMaterial(beanColor, { rough: 0.9 });
   const seed = [
-    [-0.2, 0.06, -0.12], [-0.09, 0.05, 0.08], [0.04, 0.06, -0.05], [0.16, 0.05, 0.11],
-    [0.24, 0.06, -0.14], [-0.26, 0.05, 0.09], [-0.02, 0.05, -0.19], [0.11, 0.06, 0.02],
-    [-0.15, 0.11, -0.02], [0.02, 0.12, 0.09], [0.15, 0.11, -0.08], [-0.06, 0.1, 0.18],
-    [-0.05, 0.17, 0.03], [0.08, 0.16, -0.13], [0.2, 0.1, 0.16], [-0.22, 0.1, 0.2],
+    // Deepest first: a light reading fills the bottom of the dish, a heavy one
+    // heaps it to the rim.
+    [-0.11, 0.072, 0.03], [0.02, 0.072, -0.1], [0.1, 0.072, 0.07], [-0.04, 0.072, 0.12],
+    [0.13, 0.072, -0.06], [-0.14, 0.072, -0.08],
+    [-0.17, 0.128, 0.05], [-0.05, 0.128, -0.15], [0.07, 0.128, 0.16], [0.18, 0.128, 0.02],
+    [-0.02, 0.128, 0.2], [0.15, 0.128, 0.14], [-0.19, 0.128, -0.1], [0.19, 0.128, 0.09],
+    [-0.1, 0.184, 0.02], [0.03, 0.184, -0.12], [0.12, 0.184, 0.06], [-0.03, 0.184, 0.14],
+    [0.15, 0.184, -0.05], [-0.16, 0.184, -0.07], [0.0, 0.212, 0.0], [0.08, 0.206, 0.08],
   ];
   seed.forEach(([x, y, z], i) => {
     const b = new THREE.Mesh(geo, mat);
@@ -190,11 +232,11 @@ export function steamScale(root: THREE.Group, tMs: number) {
     const k = (t + (puff.userData.phase as number)) % 1;
     const drift = puff.userData.drift as number;
 
-    puff.position.set(drift * 0.1 * k + Math.sin(k * 4 + drift) * 0.032, 0.34 + k * 0.46, 0.04);
-    puff.scale.setScalar(0.5 + k * 0.8);
+    puff.position.set(drift * 0.09 * k + Math.sin(k * 4 + drift) * 0.03, 0.46 + k * 0.4, 0.04);
+    puff.scale.setScalar(0.42 + k * 0.7);
     // In quickly, out slowly, and nothing at all on an empty pan.
     const fade = Math.min(1, k * 4.5) * (1 - k);
-    (puff.material as THREE.MeshBasicMaterial).opacity = fade * 0.85 * Math.min(1, bits.load * 3);
+    (puff.material as THREE.MeshBasicMaterial).opacity = fade * 0.6 * Math.min(1, bits.load * 3);
 
     // Cancel the parent's rotation so the plane always faces the camera.
     // Negating the parent's Euler angles does NOT invert a rotation — order

@@ -318,11 +318,11 @@ export function NewRoast() {
           build={() => buildScale("#8E9B6B")}
           tune={tuneScale}
           v={parseFloat(st.setupGreen) || 0}
-          reach={0.62}
-          lift={0.16}
-          height={150}
+          reach={0.68}
+          lift={0.23}
+          height={180}
           spin={-0.42}
-          tilt={0.34}
+          tilt={0.44}
           shadow={[1.25, 1.0]}
           inline
           label={`Scale reading ${st.setupGreen || 0} grams of green coffee`}

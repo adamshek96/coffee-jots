@@ -80,11 +80,11 @@ export function FinishRoast() {
           animate={steamScale}
           tune={tuneScale}
           v={parseFloat(st.postWeight) || 0}
-          reach={0.76}
-          lift={0.3}
-          height={200}
+          reach={0.82}
+          lift={0.4}
+          height={215}
           spin={-0.42}
-          tilt={0.34}
+          tilt={0.44}
           shadow={[1.3, 1.05]}
           inline
           label={`Scale reading ${st.postWeight || 0} grams of roasted coffee`}
